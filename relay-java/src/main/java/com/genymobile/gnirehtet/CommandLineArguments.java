@@ -28,6 +28,7 @@ public class CommandLineArguments {
     public static final int PARAM_ROUTES = 1 << 2;
     public static final int PARAM_PORT = 1 << 3;
     public static final int PARAM_WHITELIST_BUNDLE_IDS = 1 << 4;
+    public static final int PARAM_COMPRESSION = 1 << 5;
 
     public static final int DEFAULT_PORT = 31416;
 
@@ -36,6 +37,7 @@ public class CommandLineArguments {
     private String dnsServers;
     private String routes;
     private String whitelistBundleIds;
+    private String compression;
 
     public static CommandLineArguments parse(int acceptedParameters, String... args) {
         CommandLineArguments arguments = new CommandLineArguments();
@@ -80,6 +82,15 @@ public class CommandLineArguments {
                 }
                 arguments.whitelistBundleIds = args[i + 1];
                 ++i;
+            } else if ((acceptedParameters & PARAM_COMPRESSION) != 0 && "-z".equals(arg)) {
+                if (arguments.compression != null) {
+                    throw new IllegalArgumentException("Compression already set");
+                }
+                if (i == args.length - 1) {
+                    throw new IllegalArgumentException("Missing -z parameter");
+                }
+                arguments.compression = args[i + 1];
+                ++i;
             } else if ((acceptedParameters & PARAM_SERIAL) != 0 && arguments.serial == null) {
                 arguments.serial = arg;
             } else {
@@ -110,5 +121,9 @@ public class CommandLineArguments {
 
     public String getWhitelistBundleIds() {
         return whitelistBundleIds;
+    }
+
+    public String getCompression() {
+        return compression;
     }
 }

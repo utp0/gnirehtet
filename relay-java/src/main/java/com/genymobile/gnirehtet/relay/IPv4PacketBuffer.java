@@ -28,6 +28,21 @@ public class IPv4PacketBuffer {
         return channel.read(buffer);
     }
 
+    /**
+     * Append data from the given buffer, without consuming more than the available space.
+     *
+     * @param source the source buffer
+     * @return the number of bytes actually copied
+     */
+    public int readFrom(ByteBuffer source) {
+        int count = Math.min(source.remaining(), buffer.remaining());
+        int limit = source.limit();
+        source.limit(source.position() + count);
+        buffer.put(source);
+        source.limit(limit);
+        return count;
+    }
+
     @SuppressWarnings("checkstyle:MagicNumber")
     private int getAvailablePacketLength() {
         int length = IPv4Header.readLength(buffer);

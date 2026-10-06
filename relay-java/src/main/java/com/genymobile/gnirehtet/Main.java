@@ -19,6 +19,7 @@ package com.genymobile.gnirehtet;
 import com.genymobile.gnirehtet.relay.CommandExecutionException;
 import com.genymobile.gnirehtet.relay.Log;
 import com.genymobile.gnirehtet.relay.Relay;
+import com.genymobile.gnirehtet.relay.TunnelCompression;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,32 +88,38 @@ public final class Main {
             }
         },
         RUN("run", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES
-                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS ) {
+                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
             @Override
             String getDescription() {
                 return "Enable reverse tethering for exactly one device:\n"
                         + "  - install the client if necessary;\n"
                         + "  - start the client;\n"
                         + "  - start the relay server;\n"
-                        + "  - on Ctrl+C, stop both the relay server and the client.";
+                        + "  - on Ctrl+C, stop both the relay server and the client.\n"
+                        + "If -z is given, compress the tunnel traffic with the specified\n"
+                        + "algorithm (available: none, deflate).";
             }
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdRun(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
+                cmdRun(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(),
+                        args.getCompression());
             }
         },
-        AUTORUN("autorun", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) {
+        AUTORUN("autorun", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT
+                | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
             @Override
             String getDescription() {
                 return "Enable reverse tethering for all devices:\n"
                         + "  - monitor devices and start clients (autostart);\n"
-                        + "  - start the relay server.";
+                        + "  - start the relay server.\n"
+                        + "If -z is given, compress the tunnel traffic with the specified\n"
+                        + "algorithm (available: none, deflate).";
             }
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdAutorun(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
+                cmdAutorun(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(), args.getCompression());
             }
         },
         START("start", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES
@@ -192,15 +199,17 @@ public final class Main {
                 cmdTunnel(args.getSerial(), args.getPort());
             }
         },
-        RELAY("relay", CommandLineArguments.PARAM_PORT) {
+        RELAY("relay", CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_COMPRESSION) {
             @Override
             String getDescription() {
-                return "Start the relay server in the current terminal.";
+                return "Start the relay server in the current terminal.\n"
+                        + "If -z is given, compress the tunnel traffic with the specified\n"
+                        + "algorithm (available: none, deflate).";
             }
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdRelay(args.getPort());
+                cmdRelay(args.getPort(), args.getCompression());
             }
         };
 
@@ -232,7 +241,8 @@ public final class Main {
         cmdInstall(serial);
     }
 
-    private static void cmdRun(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) throws IOException {
+    private static void cmdRun(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, String compression)
+            throws IOException {
         // start in parallel so that the relay server is ready when the client connects
         asyncStart(serial, dnsServers, routes, port, whitelistBundleIds);
 
@@ -245,10 +255,11 @@ public final class Main {
             }
         }));
 
-        cmdRelay(port);
+        cmdRelay(port, compression);
     }
 
-    private static void cmdAutorun(final String dnsServers, final String routes, int port, final String whitelistBundleIds) throws IOException {
+    private static void cmdAutorun(final String dnsServers, final String routes, int port, final String whitelistBundleIds,
+            final String compression) throws IOException {
         new Thread(() -> {
             try {
                 cmdAutostart(dnsServers, routes, port, whitelistBundleIds);
@@ -257,7 +268,7 @@ public final class Main {
             }
         }).start();
 
-        cmdRelay(port);
+        cmdRelay(port, compression);
     }
 
     @SuppressWarnings("checkstyle:MagicNumber")
@@ -310,9 +321,11 @@ public final class Main {
         execAdb(serial, "reverse", "localabstract:gnirehtet", "tcp:" + port);
     }
 
-    private static void cmdRelay(int port) throws IOException {
+    private static void cmdRelay(int port, String compressionName) throws IOException {
+        int compressionAlgorithm = compressionName == null ? TunnelCompression.ALGORITHM_NONE
+                : TunnelCompression.algorithmFromName(compressionName);
         Log.i(TAG, "Starting relay server on port " + port + "...");
-        new Relay(port).run();
+        new Relay(port, compressionAlgorithm).run();
     }
 
     private static void asyncStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) {
@@ -419,6 +432,9 @@ public final class Main {
         if ((command.acceptedParameters & CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) != 0) {
             builder.append(" [-b BUNDLE_ID[,BUNDLE_ID2,...]]");
         }
+        if ((command.acceptedParameters & CommandLineArguments.PARAM_COMPRESSION) != 0) {
+            builder.append(" [-z ALGORITHM]");
+        }
         builder.append(NL);
         String[] descLines = command.getDescription().split("\n");
         for (String descLine : descLines) {
@@ -450,6 +466,11 @@ public final class Main {
                 } catch (IllegalArgumentException e) {
                     Log.e(TAG, e.getMessage());
                     printCommandUsage(command);
+                    return;
+                }
+
+                if (arguments.getCompression() != null && "list".equalsIgnoreCase(arguments.getCompression())) {
+                    Log.i(TAG, "Available tunnel compression algorithms: " + TunnelCompression.availableAlgorithms());
                     return;
                 }
 

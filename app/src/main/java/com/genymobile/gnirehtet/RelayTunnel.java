@@ -22,8 +22,13 @@ import android.net.VpnService;
 import android.util.Log;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.Arrays;
+import java.util.zip.DataFormatException;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
 
 public final class RelayTunnel implements Tunnel {
 
@@ -31,7 +36,21 @@ public final class RelayTunnel implements Tunnel {
 
     private static final String LOCAL_ABSTRACT_NAME = "gnirehtet";
 
+    private static final int COMPRESSION_MAGIC = 0x474E525A; // "GNRZ"
+    private static final int COMPRESSION_VERSION = 1;
+    private static final int COMPRESSION_ALGORITHM_NONE = 0;
+    private static final int COMPRESSION_ALGORITHM_DEFLATE = 1;
+    private static final int MAX_FRAME_LENGTH = 1 << 20;
+
     private final LocalSocket localSocket = new LocalSocket();
+
+    private DataInputStream inputStream;
+    private DataOutputStream outputStream;
+    private boolean compressed;
+
+    private final Deflater deflater = new Deflater(Deflater.DEFAULT_COMPRESSION);
+    private final Inflater inflater = new Inflater();
+    private byte[] frameBuffer = new byte[0];
 
     private RelayTunnel() {
         // exposed through open() static method
@@ -47,7 +66,9 @@ public final class RelayTunnel implements Tunnel {
 
     public void connect() throws IOException {
         localSocket.connect(new LocalSocketAddress(LOCAL_ABSTRACT_NAME));
-        readClientId(localSocket.getInputStream());
+        inputStream = new DataInputStream(localSocket.getInputStream());
+        outputStream = new DataOutputStream(localSocket.getOutputStream());
+        readHandshake();
     }
 
     /**
@@ -62,15 +83,29 @@ public final class RelayTunnel implements Tunnel {
      * To avoid this problem, we must actually read from the server, so that an error occurs
      * immediately if the relay server is not accessible.
      * <p>
-     * Therefore, the relay server immediately sends the client id: consume it and log it.
+     * Therefore, the relay server immediately sends the client id. If tunnel compression is
+     * enabled, it is sent as a handshake (magic + version + algorithm + client id) instead; if the
+     * magic is not recognized, the value is just the legacy client id and the tunnel stays
+     * uncompressed.
      *
-     * @param inputStream the input stream to receive data from the relay server
      * @throws IOException if an I/O error occurs
      */
-    private static void readClientId(InputStream inputStream) throws IOException {
+    private void readHandshake() throws IOException {
         Log.d(TAG, "Requesting client id");
-        int clientId = new DataInputStream(inputStream).readInt();
-        Log.d(TAG, "Connected to the relay server as #" + Binary.unsigned(clientId));
+        int value = inputStream.readInt();
+        if (value == COMPRESSION_MAGIC) {
+            int version = inputStream.readUnsignedByte();
+            int algorithm = inputStream.readUnsignedByte();
+            int clientId = inputStream.readInt();
+            if (version != COMPRESSION_VERSION) {
+                throw new IOException("Unsupported tunnel protocol version: " + version);
+            }
+            compressed = algorithm == COMPRESSION_ALGORITHM_DEFLATE;
+            Log.d(TAG, "Connected to the relay server as #" + Binary.unsigned(clientId)
+                    + (compressed ? " (deflate compression)" : " (unknown algorithm " + algorithm + ")"));
+        } else {
+            Log.d(TAG, "Connected to the relay server as #" + Binary.unsigned(value));
+        }
     }
 
     @Override
@@ -78,16 +113,80 @@ public final class RelayTunnel implements Tunnel {
         if (GnirehtetService.VERBOSE) {
             Log.v(TAG, "Sending packet: " + Binary.buildPacketString(packet, len));
         }
-        localSocket.getOutputStream().write(packet, 0, len);
+        if (!compressed) {
+            outputStream.write(packet, 0, len);
+            return;
+        }
+        byte[] compressedFrame = compress(packet, len);
+        if (compressedFrame.length < len) {
+            outputStream.writeInt(compressedFrame.length);
+            outputStream.write(compressedFrame);
+        } else {
+            // incompressible: send the raw frame
+            outputStream.writeInt(len | 0x80000000);
+            outputStream.write(packet, 0, len);
+        }
+    }
+
+    private byte[] compress(byte[] data, int len) {
+        byte[] buffer = new byte[len + 64];
+        deflater.reset();
+        deflater.setInput(data, 0, len);
+        deflater.finish();
+        int n = deflater.deflate(buffer);
+        while (!deflater.finished()) {
+            byte[] bigger = new byte[buffer.length * 2];
+            System.arraycopy(buffer, 0, bigger, 0, n);
+            buffer = bigger;
+            n += deflater.deflate(buffer, n, buffer.length - n);
+        }
+        return Arrays.copyOf(buffer, n);
     }
 
     @Override
     public int receive(byte[] packet) throws IOException {
-        int r = localSocket.getInputStream().read(packet);
-        if (GnirehtetService.VERBOSE) {
+        int r = compressed ? receiveCompressed(packet) : inputStream.read(packet);
+        if (GnirehtetService.VERBOSE && r > 0) {
             Log.v(TAG, "Receiving packet: " + Binary.buildPacketString(packet, r));
         }
         return r;
+    }
+
+    @SuppressWarnings("checkstyle:MagicNumber")
+    private int receiveCompressed(byte[] packet) throws IOException {
+        int header;
+        try {
+            header = inputStream.readInt();
+        } catch (EOFException e) {
+            return -1;
+        }
+        int length = header & 0x7fffffff;
+        if (length > MAX_FRAME_LENGTH) {
+            throw new IOException("Invalid tunnel frame length: " + length);
+        }
+        if (frameBuffer.length < length) {
+            frameBuffer = new byte[length];
+        }
+        inputStream.readFully(frameBuffer, 0, length);
+        if ((header & 0x80000000) != 0) {
+            if (length > packet.length) {
+                throw new IOException("Tunnel frame larger than the receive buffer: " + length);
+            }
+            System.arraycopy(frameBuffer, 0, packet, 0, length);
+            return length;
+        }
+        inflater.setInput(frameBuffer, 0, length);
+        try {
+            int n = inflater.inflate(packet);
+            if (!inflater.needsInput()) {
+                throw new IOException("Compressed tunnel frame larger than the receive buffer");
+            }
+            return n;
+        } catch (DataFormatException e) {
+            throw new IOException("Invalid compressed tunnel frame", e);
+        } finally {
+            inflater.reset();
+        }
     }
 
     @Override

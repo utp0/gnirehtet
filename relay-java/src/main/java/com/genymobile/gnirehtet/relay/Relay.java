@@ -28,18 +28,27 @@ public class Relay {
     private static final int CLEANING_INTERVAL = 60 * 1000;
 
     private final int port;
+    private final int compressionAlgorithm;
 
     public Relay(int port) {
+        this(port, TunnelCompression.ALGORITHM_NONE);
+    }
+
+    public Relay(int port, int compressionAlgorithm) {
         this.port = port;
+        this.compressionAlgorithm = compressionAlgorithm;
     }
 
     public void run() throws IOException {
         Selector selector = Selector.open();
 
         // will register the socket on the selector
-        TunnelServer tunnelServer = new TunnelServer(port, selector);
+        TunnelServer tunnelServer = new TunnelServer(port, selector, compressionAlgorithm);
 
         Log.i(TAG, "Relay server started");
+        if (compressionAlgorithm != TunnelCompression.ALGORITHM_NONE) {
+            Log.i(TAG, "Tunnel compression enabled: " + TunnelCompression.algorithmName(compressionAlgorithm));
+        }
 
         long nextCleaningDeadline = System.currentTimeMillis() + UDPConnection.IDLE_TIMEOUT;
         while (true) {

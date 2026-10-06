@@ -18,8 +18,14 @@ public class TunnelServer {
     private static final String TAG = TunnelServer.class.getSimpleName();
 
     private final List<Client> clients = new ArrayList<>();
+    private final int compressionAlgorithm;
 
     public TunnelServer(int port, Selector selector) throws IOException {
+        this(port, selector, TunnelCompression.ALGORITHM_NONE);
+    }
+
+    public TunnelServer(int port, Selector selector, int compressionAlgorithm) throws IOException {
+        this.compressionAlgorithm = compressionAlgorithm;
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.configureBlocking(false);
         // ServerSocketChannel.bind() requires API 24
@@ -40,7 +46,7 @@ public class TunnelServer {
         SocketChannel socketChannel = serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
         // will register the socket on the selector
-        Client client = new Client(selector, socketChannel, this::removeClient);
+        Client client = new Client(selector, socketChannel, this::removeClient, compressionAlgorithm);
         clients.add(client);
         Log.i(TAG, "Client #" + client.getId() + " connected");
     }

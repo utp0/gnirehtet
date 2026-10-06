@@ -91,6 +91,23 @@ public class StreamBuffer {
     }
 
     /**
+     * Copy the stream content into the given buffer, and consume it.
+     *
+     * @param destination the destination buffer
+     */
+    public void copyTo(ByteBuffer destination) {
+        int requested = Math.min(destination.remaining(), size());
+        if (requested <= data.length - tail) {
+            destination.put(data, tail, requested);
+        } else {
+            destination.put(data, tail, data.length - tail);
+            destination.put(data, 0, tail + requested - data.length);
+        }
+        tail = (tail + requested) % data.length;
+        optimize();
+    }
+
+    /**
      * To avoid unnecessary copies, StreamBuffer writes at most until the "end" of the circular
      * buffer, which is suboptimal (it could have written more data if they have been contiguous).
      * <p>
