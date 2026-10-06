@@ -40,6 +40,7 @@ public class VpnConfiguration implements Parcelable {
     private final CIDR[] excludedRoutes;
     private final String[] apps;
     private final String[] excludedApps;
+    private final String[] whitelistBundleIds;
     private final String underlyingMode;
 
     public VpnConfiguration() {
@@ -51,21 +52,27 @@ public class VpnConfiguration implements Parcelable {
     }
 
     public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, String underlyingMode) {
-        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], underlyingMode);
+        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], new String[0], underlyingMode);
     }
 
     public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, CIDR[] excludedRoutes, String[] apps, String[] excludedApps) {
-        this(dnsServers, routes, excludedRoutes, apps, excludedApps, UNDERLYING_CALLBACK);
+        this(dnsServers, routes, excludedRoutes, apps, excludedApps, new String[0], UNDERLYING_CALLBACK);
+    }
+
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, String[] whitelistBundleIds) {
+        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], whitelistBundleIds, UNDERLYING_CALLBACK);
     }
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, CIDR[] excludedRoutes, String[] apps, String[] excludedApps,
-            String underlyingMode) {
+            String[] whitelistBundleIds, String underlyingMode) {
         this.dnsServers = dnsServers;
         this.routes = routes;
         this.excludedRoutes = excludedRoutes;
         this.apps = apps;
         this.excludedApps = excludedApps;
+        this.whitelistBundleIds = whitelistBundleIds;
         this.underlyingMode = underlyingMode;
     }
 
@@ -83,6 +90,7 @@ public class VpnConfiguration implements Parcelable {
         excludedRoutes = source.createTypedArray(CIDR.CREATOR);
         apps = source.createStringArray();
         excludedApps = source.createStringArray();
+        whitelistBundleIds = source.createStringArray();
         underlyingMode = source.readString();
     }
 
@@ -104,6 +112,10 @@ public class VpnConfiguration implements Parcelable {
 
     public String[] getExcludedApps() {
         return excludedApps;
+    }
+
+    public String[] getWhitelistBundleIds() {
+        return this.whitelistBundleIds;
     }
 
     public String getUnderlyingMode() {
@@ -132,6 +144,7 @@ public class VpnConfiguration implements Parcelable {
         dest.writeTypedArray(excludedRoutes, 0);
         dest.writeStringArray(apps);
         dest.writeStringArray(excludedApps);
+        dest.writeStringArray(whitelistBundleIds);
         dest.writeString(underlyingMode);
     }
 

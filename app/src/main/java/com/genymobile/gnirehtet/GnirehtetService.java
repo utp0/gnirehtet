@@ -159,6 +159,15 @@ public class GnirehtetService extends VpnService {
             }
         }
 
+        String[] whitelistBundleIds = config.getWhitelistBundleIds();
+        for (String app : whitelistBundleIds) {
+            try {
+                builder.addAllowedApplication(app);
+            } catch (PackageManager.NameNotFoundException e) {
+                Log.w(TAG, "Cannot add whitelisted app " + app, e);
+            }
+        }
+
         String[] apps = config.getApps();
         String[] excludedApps = config.getExcludedApps();
         if (apps.length != 0) {
