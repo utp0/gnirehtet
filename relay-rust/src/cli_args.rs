@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+use clap::{App, Arg};
+
 pub const PARAM_NONE: u8 = 0;
 pub const PARAM_SERIAL: u8 = 1;
 pub const PARAM_DNS_SERVERS: u8 = 1 << 1;
@@ -38,78 +40,53 @@ pub struct CommandLineArguments {
 impl CommandLineArguments {
     // simple String as errors is sufficient, we never need to inspect them
     pub fn parse<S: Into<String>>(accepted_parameters: u8, args: Vec<S>) -> Result<Self, String> {
-        let mut serial = None;
-        let mut dns_servers = None;
-        let mut routes = None;
-        let mut port = 0;
-        let mut whitelist_bundle_ids = None;
-        let mut stop_on_disconnect = false;
-        let mut conf = String::from("");
+        let mut app = App::new("gnirehtet");
+        if (accepted_parameters & PARAM_SERIAL) != 0 {
+            app = app.arg(Arg::with_name("serial").index(1).help("The device serial"));
+        }
+        if (accepted_parameters & PARAM_DNS_SERVERS) != 0 {
+            app = app.arg(Arg::with_name("dns").short("d").takes_value(true).value_name("DNS"));
+        }
+        if (accepted_parameters & PARAM_ROUTES) != 0 {
+            app = app.arg(Arg::with_name("routes").short("r").takes_value(true).value_name("ROUTE"));
+        }
+        if (accepted_parameters & PARAM_PORT) != 0 {
+            app = app.arg(Arg::with_name("port").short("p").takes_value(true).value_name("PORT"));
+        }
+        if (accepted_parameters & PARAM_WHITELIST_BUNDLE_IDS) != 0 {
+            app = app.arg(Arg::with_name("whitelist").short("b").takes_value(true).value_name("BUNDLE_ID"));
+        }
+        if (accepted_parameters & PARAM_STOP_ON_DISCONNECT) != 0 {
+            app = app.arg(Arg::with_name("stop_on_disconnect").short("s"));
+        }
+        if (accepted_parameters & PARAM_CONF) != 0 {
+            app = app.arg(Arg::with_name("conf").short("c").takes_value(true).value_name("CONF"));
+        }
 
-        let mut iter = args.into_iter();
-        while let Some(arg) = iter.next() {
-            let arg = arg.into();
-            if (accepted_parameters & PARAM_DNS_SERVERS) != 0 && "-d" == arg {
-                if dns_servers.is_some() {
-                    return Err(String::from("DNS servers already set"));
-                }
-                if let Some(value) = iter.next() {
-                    dns_servers = Some(value.into());
-                } else {
-                    return Err(String::from("Missing -d parameter"));
-                }
-            } else if (accepted_parameters & PARAM_ROUTES) != 0 && "-r" == arg {
-                if routes.is_some() {
-                    return Err(String::from("Routes already set"));
-                }
-                if let Some(value) = iter.next() {
-                    routes = Some(value.into());
-                } else {
-                    return Err(String::from("Missing -r parameter"));
-                }
-            } else if (accepted_parameters & PARAM_PORT) != 0 && "-p" == arg {
-                if port != 0 {
-                    return Err(String::from("Port already set"));
-                }
-                if let Some(value) = iter.next() {
-                    port = value.into().parse().unwrap();
-                    if port == 0 {
-                        return Err(String::from("Invalid port: 0"));
-                    }
-                } else {
-                    return Err(String::from("Missing -p parameter"));
-                }
-            } else if (accepted_parameters & PARAM_STOP_ON_DISCONNECT) != 0 && "-s" == arg {
-                if stop_on_disconnect {
-                    return Err(String::from("Stop on disconnect already set"));
-                }
-                stop_on_disconnect = true;
-            } else if (accepted_parameters & PARAM_CONF) != 0 && "-c" == arg {
-                if !conf.is_empty() {
-                    return Err(String::from("Conf already set"));
-                }
-                if let Some(value) = iter.next() {
-                    conf = value.into();
-                } else {
-                    return Err(String::from("Missing -c parameter"));
-                }
-            } else if (accepted_parameters & PARAM_SERIAL) != 0 && serial.is_none() {
-                serial = Some(arg);
-            } else {
-                return Err(format!("Unexpected argument: \"{}\"", arg));
-            }
-        }
-        if port == 0 {
-            port = DEFAULT_PORT;
-        }
+        let mut argv: Vec<String> = vec!["gnirehtet".to_string()];
+        argv.extend(args.into_iter().map(Into::into));
+
+        let matches = match app.get_matches_from_safe(argv) {
+            Ok(matches) => matches,
+            Err(err) => return Err(err.message),
+        };
+
+        let port = match matches.value_of("port") {
+            Some(value) => match value.parse::<u16>() {
+                Ok(port) if port != 0 => port,
+                _ => return Err(format!("Invalid port: {}", value)),
+            },
+            None => DEFAULT_PORT,
+        };
+
         Ok(Self {
-            serial,
-            dns_servers,
-            routes,
+            serial: matches.value_of("serial").map(String::from),
+            dns_servers: matches.value_of("dns").map(String::from),
+            routes: matches.value_of("routes").map(String::from),
             port,
-            whitelist_bundle_ids,
-            stop_on_disconnect,
-            conf,
+            whitelist_bundle_ids: matches.value_of("whitelist").map(String::from),
+            stop_on_disconnect: matches.is_present("stop_on_disconnect"),
+            conf: matches.value_of("conf").unwrap_or("").to_string(),
         })
     }
 
