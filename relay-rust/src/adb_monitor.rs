@@ -25,6 +25,23 @@ use std::time::Duration;
 
 const TAG: &str = "AdbMonitor";
 
+#[inline]
+fn get_adb_path() -> String {
+    return std::env::var_os("ADB")
+        .unwrap_or("adb".into())
+        .into_string()
+        .expect("invalid ADB value");
+}
+
+#[inline]
+fn get_adb_server_command() -> String {
+    if let Some(env_abd_server_cmd) = std::env::var_os("ADB_SERVER_COMMAND") {
+        env_abd_server_cmd.into_string().expect("invalid ADB value")
+    } else {
+        "start-server".to_string()
+    }
+}
+
 pub trait AdbMonitorCallback {
     fn on_new_device_connected(&self, serial: &str);
 }
@@ -207,10 +224,15 @@ impl AdbMonitor {
 
     fn start_adb_daemon() -> bool {
         info!(target: TAG, "Restarting adb daemon");
-        match process::Command::new("adb")
-            .args(&["start-server"])
-            .status()
-        {
+
+        let args: Vec<String> = get_adb_server_command()
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect();
+
+        debug!(target: TAG, "Adb daemon command: {:?}", args);
+
+        match process::Command::new(get_adb_path()).args(&args).status() {
             Ok(exit_status) => {
                 if exit_status.success() {
                     true
