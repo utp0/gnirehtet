@@ -131,7 +131,7 @@ impl UdpConnection {
         udp_socket.connect(id.rewritten_destination())?;
         Ok(udp_socket)
     }
-
+    
     fn remove_from_router(&self) {
         // route is embedded in router which is embedded in client: the client necessarily exists
         let client_rc = self.client.upgrade().expect("Expected client not found");

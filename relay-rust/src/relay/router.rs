@@ -27,6 +27,7 @@ use super::ipv4_header::Protocol;
 use super::selector::Selector;
 use super::tcp_connection::TcpConnection;
 use super::udp_connection::UdpConnection;
+use super::CONF_PATH;
 
 const TAG: &str = "Router";
 
@@ -55,6 +56,18 @@ impl Router {
         client_channel: &mut ClientChannel,
         ip_packet: &IpPacket,
     ) {
+        // In proxy mode, UDP cannot be relayed through the SOCKS5 proxy.
+        if CONF_PATH.get().map_or(false, |conf| !conf.is_empty()) {
+            let protocol = match *ip_packet {
+                IpPacket::V4(ref packet) => packet.headers_data().0.protocol(),
+                IpPacket::V6(ref packet) => packet.headers_data().0.protocol(),
+            };
+            if protocol == Protocol::Udp {
+                debug!(target: TAG, "proxy mode: dropping UDP packet");
+                return;
+            }
+        }
+
         if ip_packet.is_valid() {
             match self.connection(selector, ip_packet) {
                 Ok(index) => {

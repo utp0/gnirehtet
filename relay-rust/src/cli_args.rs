@@ -21,6 +21,7 @@ pub const PARAM_ROUTES: u8 = 1 << 2;
 pub const PARAM_PORT: u8 = 1 << 3;
 pub const PARAM_WHITELIST_BUNDLE_IDS: u8 = 1 << 4;
 pub const PARAM_STOP_ON_DISCONNECT: u8 = 1 << 5;
+pub const PARAM_CONF: u8 = 1 << 6;
 
 pub const DEFAULT_PORT: u16 = 31416;
 
@@ -31,6 +32,7 @@ pub struct CommandLineArguments {
     port: u16,
     whitelist_bundle_ids: Option<String>,
     stop_on_disconnect: bool,
+    conf: String,
 }
 
 impl CommandLineArguments {
@@ -42,6 +44,7 @@ impl CommandLineArguments {
         let mut port = 0;
         let mut whitelist_bundle_ids = None;
         let mut stop_on_disconnect = false;
+        let mut conf = String::from("");
 
         let mut iter = args.into_iter();
         while let Some(arg) = iter.next() {
@@ -76,20 +79,20 @@ impl CommandLineArguments {
                 } else {
                     return Err(String::from("Missing -p parameter"));
                 }
-            } else if (accepted_parameters & PARAM_WHITELIST_BUNDLE_IDS) != 0 && "-b" == arg {
-                if whitelist_bundle_ids.is_some() {
-                    return Err(String::from("Bundle id already set"));
-                }
-                if let Some(value) = iter.next() {
-                    whitelist_bundle_ids = Some(value.into());
-                } else {
-                    return Err(String::from("Missing -b parameter"));
-                }
             } else if (accepted_parameters & PARAM_STOP_ON_DISCONNECT) != 0 && "-s" == arg {
                 if stop_on_disconnect {
                     return Err(String::from("Stop on disconnect already set"));
                 }
                 stop_on_disconnect = true;
+            } else if (accepted_parameters & PARAM_CONF) != 0 && "-c" == arg {
+                if !conf.is_empty() {
+                    return Err(String::from("Conf already set"));
+                }
+                if let Some(value) = iter.next() {
+                    conf = value.into();
+                } else {
+                    return Err(String::from("Missing -c parameter"));
+                }
             } else if (accepted_parameters & PARAM_SERIAL) != 0 && serial.is_none() {
                 serial = Some(arg);
             } else {
@@ -106,6 +109,7 @@ impl CommandLineArguments {
             port,
             whitelist_bundle_ids,
             stop_on_disconnect,
+            conf,
         })
     }
 
@@ -125,12 +129,16 @@ impl CommandLineArguments {
         self.port
     }
 
+    pub fn stop_on_disconnect(&self) -> bool {
+        self.stop_on_disconnect
+    }
+
     pub fn whitelist_bundle_ids(&self) -> Option<&str> {
         self.whitelist_bundle_ids.as_deref()
     }
 
-    pub fn stop_on_disconnect(&self) -> bool {
-        self.stop_on_disconnect
+    pub fn conf(&self) -> &str {
+        &self.conf
     }
 }
 

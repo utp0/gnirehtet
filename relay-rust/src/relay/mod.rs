@@ -15,7 +15,14 @@
  */
 
 pub use self::relay::Relay;
+pub use self::socks5_protocol::{Socks5State, Authentication};
+pub use self::proxy_config::GNIREHTET_PROXY_CONFIG;
+pub use self::proxy_config::CONF_PATH;
+
 pub mod byte_buffer;
+
+mod socks5_protocol;
+mod proxy_config;
 
 mod binary;
 mod client;
@@ -36,6 +43,7 @@ mod ipv6_packet;
 mod net;
 mod packet_source;
 mod packetizer;
+
 #[allow(clippy::module_inception)] // relay.rs is in relay/
 mod relay;
 mod router;
@@ -47,3 +55,4 @@ mod transport_header;
 mod tunnel_server;
 mod udp_connection;
 mod udp_header;
+
