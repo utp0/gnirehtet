@@ -1,3 +1,8 @@
+> **Disclaimer:** This repository is a modified fork of
+> [Genymobile/gnirehtet](https://github.com/Genymobile/gnirehtet). Its contents were
+> changed with the help of AI and have not been reviewed, endorsed, or supported by
+> Genymobile. Use at your own risk.
+
 # Gnirehtet (v2.5.1)
 
 This project provides **reverse tethering** for Android over `adb`: it
