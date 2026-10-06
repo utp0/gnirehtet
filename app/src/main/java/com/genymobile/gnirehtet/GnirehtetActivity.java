@@ -23,6 +23,9 @@ public class GnirehtetActivity extends Activity {
 
     public static final String EXTRA_DNS_SERVERS = "dnsServers";
     public static final String EXTRA_ROUTES = "routes";
+    public static final String EXTRA_EXCLUDED_ROUTES = "excludedRoutes";
+    public static final String EXTRA_APPS = "apps";
+    public static final String EXTRA_EXCLUDED_APPS = "excludedApps";
 
     private static final int VPN_REQUEST_CODE = 0;
 
@@ -59,7 +62,20 @@ public class GnirehtetActivity extends Activity {
         if (routes == null) {
             routes = new String[0];
         }
-        return new VpnConfiguration(Net.toInetAddresses(dnsServers), Net.toCIDRs(routes));
+        String[] excludedRoutes = intent.getStringArrayExtra(EXTRA_EXCLUDED_ROUTES);
+        if (excludedRoutes == null) {
+            excludedRoutes = new String[0];
+        }
+        String[] apps = intent.getStringArrayExtra(EXTRA_APPS);
+        if (apps == null) {
+            apps = new String[0];
+        }
+        String[] excludedApps = intent.getStringArrayExtra(EXTRA_EXCLUDED_APPS);
+        if (excludedApps == null) {
+            excludedApps = new String[0];
+        }
+
+        return new VpnConfiguration(Net.toInetAddresses(dnsServers), Net.toCIDRs(routes), Net.toCIDRs(excludedRoutes), apps, excludedApps);
     }
 
     private boolean startGnirehtet(VpnConfiguration config) {

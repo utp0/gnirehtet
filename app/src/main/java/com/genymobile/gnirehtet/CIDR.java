@@ -16,6 +16,9 @@
 
 package com.genymobile.gnirehtet;
 
+import android.annotation.TargetApi;
+import android.net.IpPrefix;
+import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Log;
@@ -72,6 +75,11 @@ public class CIDR implements Parcelable {
 
     public int getPrefixLength() {
         return prefixLength;
+    }
+
+    @TargetApi(Build.VERSION_CODES.TIRAMISU)
+    public IpPrefix getIpPrefix() {
+        return new IpPrefix(address, prefixLength);
     }
 
     @Override

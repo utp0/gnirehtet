@@ -1,14 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion rootProject.ext.compileSdkVersion
-    buildToolsVersion rootProject.ext.buildToolsVersion
-
     defaultConfig {
         archivesBaseName = "gnirehtet" // change apk name
         applicationId "com.genymobile.gnirehtet"
-        minSdkVersion 21
-        targetSdkVersion 29
+        minSdk 21
+        targetSdk 33
+        compileSdk 33
         versionCode 9
         versionName "2.5.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"

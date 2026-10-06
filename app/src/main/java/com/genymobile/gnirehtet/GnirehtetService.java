@@ -18,6 +18,7 @@ package com.genymobile.gnirehtet;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.LinkAddress;
 import android.net.LinkProperties;
@@ -125,6 +126,13 @@ public class GnirehtetService extends VpnService {
             }
         }
 
+        CIDR[] excludedRoutes = config.getExcludedRoutes();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            for (CIDR route : excludedRoutes) {
+                builder.excludeRoute(route.getIpPrefix());
+            }
+        }
+
         InetAddress[] dnsServers = config.getDnsServers();
         if (dnsServers.length == 0) {
             // no DNS server defined, use Google DNS
@@ -132,6 +140,26 @@ public class GnirehtetService extends VpnService {
         } else {
             for (InetAddress dnsServer : dnsServers) {
                 builder.addDnsServer(dnsServer);
+            }
+        }
+
+        String[] apps = config.getApps();
+        String[] excludedApps = config.getExcludedApps();
+        if (apps.length != 0) {
+            for (String app : apps) {
+                try {
+                    builder.addAllowedApplication(app);
+                } catch (PackageManager.NameNotFoundException e) {
+                    Log.w(TAG, "Cannot add allowed app " + app, e);
+                }
+            }
+        } else {
+            for (String app : excludedApps) {
+                try {
+                    builder.addDisallowedApplication(app);
+                } catch (PackageManager.NameNotFoundException e) {
+                    Log.w(TAG, "Cannot add disallowed app " + app, e);
+                }
             }
         }
 

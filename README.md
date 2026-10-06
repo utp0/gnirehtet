@@ -217,6 +217,51 @@ To stop a client:
         -n com.genymobile.gnirehtet/.GnirehtetActivity
 
 
+## Usage with Hotspot
+
+The most common way to share a VPN connection over a mobile hotspot on _[nonroot]_ Android is via a Proxy Service - for example, [Every Proxy](https://play.google.com/store/apps/details?id=com.gorillasoftware.everyproxy) by Gorilla Software LLP.
+
+`gnirehtet` does not, by default, support inbound proxy connections as they are automatically forwarded to your computer. There are workarounds though.
+
+### Android 13
+
+Devices running Android 13 or newer (API Level >= 33) support individual route blocking. `gnirehtet` allows you to specify a range of routes to be excluded from being forwarded along with other traffic.
+
+To get started, retrieve your hotspot IP Address. This can be done through your proxy app of choice, but if it is not displayed, run the following command:
+
+```
+adb shell ip route
+```
+
+If your mobile hotspot is enabled, the entry "`wlan1`" should appear with its IP Address.
+
+To start the client with this IP Address excluded:
+*Note: The client may need to be stopped in order to apply these changes - see above*
+
+```
+adb shell am start -a com.genymobile.gnirehtet.START \
+	-n com.genymobile.gnirehtet/.GnirehtetActivity \
+	--esa "excludedRoutes" "[ip address]"
+```
+
+### Android 5
+
+Android 5 (API Level >= 21) added the ability to exclude specific applications in a VPN's configuration. This legacy feature makes it possible to allow proxy apps to share the `gnirehtet`'s connection.
+
+First, find the package name of your installed proxy app. For example, [Every Proxy](https://play.google.com/store/apps/details?id=com.gorillasoftware.everyproxy) has the package name `com.gorillasoftware.everyproxy`.
+
+This method will generally require an additional "bridging" app so that the proxy can still access VPN traffic. For example, the [Every Proxy Network Bridge](https://play.google.com/store/apps/details?id=com.gorillasoftware.everyproxybridge) app (must be enabled through the proxy app's settings).
+
+To start the client with this app excluded:
+*Note: The client may need to be stopped in order to apply these changes - see above*
+
+```
+adb shell am start -a com.genymobile.gnirehtet.START \
+	-n com.genymobile.gnirehtet/.GnirehtetActivity \
+	--esa "excludedApps" "[package name]"
+```
+
+
 ## Environment variables
 
 `ADB` defines a custom path to the `adb` executable:
@@ -235,6 +280,16 @@ GNIREHTET_APK=/usr/share/gnirehtet/gnirehtet.apk ./gnirehtet run
 ## Accessing services running on the host computer
 
 10.0.2.2 is mapped to the host 'localhost', so you can access services running at the host by using the ip 10.0.2.2 on the Android device.
+
+## Intent Arguments
+
+`gnirehtet` supports several optional intent arguments for VPN configuration.
+
+- `dnsServers` (default: `8.8.8.8` - Google DNS)
+- `routes` (default: `0.0.0.0` - all network traffic)
+- `excludedRoutes` (Android 13+, API Level >= 33)
+- `apps` (if argument is present, all apps not included will bypass `gnirehtet`)
+- `excludedApps` (ignored if `apps` argument is present)
 
 
 ## Why _gnirehtet_?

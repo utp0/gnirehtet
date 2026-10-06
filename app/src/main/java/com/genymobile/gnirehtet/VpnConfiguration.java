@@ -26,15 +26,24 @@ public class VpnConfiguration implements Parcelable {
 
     private final InetAddress[] dnsServers;
     private final CIDR[] routes;
+    private final CIDR[] excludedRoutes;
+    private final String[] apps;
+    private final String[] excludedApps;
 
     public VpnConfiguration() {
         this.dnsServers = new InetAddress[0];
         this.routes = new CIDR[0];
+        this.excludedRoutes = new CIDR[0];
+        this.apps = new String[0];
+        this.excludedApps = new String[0];
     }
 
-    public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes) {
+    public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, CIDR[] excludedRoutes, String[] apps, String[] excludedApps) {
         this.dnsServers = dnsServers;
         this.routes = routes;
+        this.excludedRoutes = excludedRoutes;
+        this.apps = apps;
+        this.excludedApps = excludedApps;
     }
 
     private VpnConfiguration(Parcel source) {
@@ -48,6 +57,9 @@ public class VpnConfiguration implements Parcelable {
             throw new AssertionError("Invalid address", e);
         }
         routes = source.createTypedArray(CIDR.CREATOR);
+        excludedRoutes = source.createTypedArray(CIDR.CREATOR);
+        apps = source.createStringArray();
+        excludedApps = source.createStringArray();
     }
 
     public InetAddress[] getDnsServers() {
@@ -58,6 +70,12 @@ public class VpnConfiguration implements Parcelable {
         return routes;
     }
 
+    public CIDR[] getExcludedRoutes() { return excludedRoutes; }
+
+    public String[] getApps() { return apps; }
+
+    public String[] getExcludedApps() { return excludedApps; }
+
     @Override
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeInt(dnsServers.length);
@@ -65,6 +83,9 @@ public class VpnConfiguration implements Parcelable {
             dest.writeByteArray(addr.getAddress());
         }
         dest.writeTypedArray(routes, 0);
+        dest.writeTypedArray(excludedRoutes, 0);
+        dest.writeStringArray(apps);
+        dest.writeStringArray(excludedApps);
     }
 
     @Override
