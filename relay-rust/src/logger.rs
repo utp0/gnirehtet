@@ -19,7 +19,7 @@ use log::*;
 use std::io::{self, Write};
 
 static LOGGER: SimpleLogger = SimpleLogger;
-const THRESHOLD: LevelFilter = LevelFilter::Debug;
+const THRESHOLD: LevelFilter = LevelFilter::Info;
 
 pub struct SimpleLogger;
 
