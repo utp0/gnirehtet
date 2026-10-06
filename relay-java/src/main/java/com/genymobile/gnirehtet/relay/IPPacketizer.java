@@ -16,13 +16,21 @@
 
 package com.genymobile.gnirehtet.relay;
 
-public interface Connection {
+import java.io.IOException;
+import java.nio.channels.ReadableByteChannel;
 
-    ConnectionId getId();
+/**
+ * Convert from level 5 to level 3 by appending correct IP and transport headers.
+ */
+public interface IPPacketizer {
 
-    void sendToNetwork(IPPacket packet);
+    IPHeader getResponseHeader();
 
-    void disconnect();
+    TransportHeader getResponseTransportHeader();
 
-    boolean isExpired();
+    IPPacket packetizeEmptyPayload();
+
+    IPPacket packetize(ReadableByteChannel channel, int maxChunkSize) throws IOException;
+
+    IPPacket packetize(ReadableByteChannel channel) throws IOException;
 }

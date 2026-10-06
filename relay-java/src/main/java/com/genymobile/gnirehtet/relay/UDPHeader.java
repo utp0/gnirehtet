@@ -82,8 +82,56 @@ public class UDPHeader implements TransportHeader {
     }
 
     @Override
-    public void computeChecksum(IPv4Header ipv4Header, ByteBuffer payload) {
-        // disable checksum validation
+    public void computeChecksum(IPHeader ipHeader, ByteBuffer payload) {
+        if (ipHeader instanceof IPv6Header) {
+            computeChecksumV6((IPv6Header) ipHeader, payload);
+        } else {
+            // disable checksum validation
+            raw.putShort(6, (short) 0);
+        }
+    }
+
+    private void computeChecksumV6(IPv6Header ipv6Header, ByteBuffer payload) {
+        // IPv6 requires a UDP checksum (RFC 8200); 0 means "no checksum" is not allowed
+        byte[] rawArray = raw.array();
+        int rawOffset = raw.arrayOffset();
+
+        byte[] payloadArray = payload.array();
+        int payloadOffset = payload.arrayOffset();
+
+        byte[] source = ipv6Header.getSource();
+        byte[] destination = ipv6Header.getDestination();
+        int length = ipv6Header.getTotalLength() - ipv6Header.getHeaderLength();
+
+        int sum = 0;
+        for (int i = 0; i < 16; i += 2) {
+            sum += ((source[i] & 0xff) << 8) | (source[i + 1] & 0xff);
+            sum += ((destination[i] & 0xff) << 8) | (destination[i + 1] & 0xff);
+        }
+        sum += length >>> 16;
+        sum += length & 0xffff;
+        sum += IPv4Header.Protocol.UDP.getNumber();
+
+        // reset checksum field
         raw.putShort(6, (short) 0);
+
+        for (int i = 0; i < UDP_HEADER_LENGTH / 2; ++i) {
+            sum += ((rawArray[rawOffset + 2 * i] & 0xff) << 8) | (rawArray[rawOffset + 2 * i + 1] & 0xff);
+        }
+
+        int payloadLength = length - UDP_HEADER_LENGTH;
+        assert payloadLength == payload.limit() : "Payload length does not match";
+        for (int i = 0; i < payloadLength / 2; ++i) {
+            sum += ((payloadArray[payloadOffset + 2 * i] & 0xff) << 8) | (payloadArray[payloadOffset + 2 * i + 1] & 0xff);
+        }
+        if (payloadLength % 2 != 0) {
+            sum += (payloadArray[payloadOffset + payloadLength - 1] & 0xff) << 8;
+        }
+
+        while ((sum & ~0xffff) != 0) {
+            sum = (sum & 0xffff) + (sum >> 16);
+        }
+        int checksum = ~sum & 0xffff;
+        raw.putShort(6, (short) (checksum == 0 ? 0xffff : checksum));
     }
 }

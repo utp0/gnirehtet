@@ -16,10 +16,11 @@
 
 package com.genymobile.gnirehtet.relay;
 
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
 @SuppressWarnings("checkstyle:MagicNumber")
-public class IPv4Header {
+public class IPv4Header implements IPHeader {
 
     public enum Protocol {
         TCP(6), UDP(17), OTHER(-1);
@@ -82,18 +83,27 @@ public class IPv4Header {
         return version == 4 && protocol != Protocol.OTHER;
     }
 
+    @Override
+    public int getVersion() {
+        return version;
+    }
+
+    @Override
     public Protocol getProtocol() {
         return protocol;
     }
 
+    @Override
     public int getHeaderLength() {
         return headerLength;
     }
 
+    @Override
     public int getTotalLength() {
         return totalLength;
     }
 
+    @Override
     public void setTotalLength(int totalLength) {
         this.totalLength = totalLength;
         // apply changes to raw
@@ -102,6 +112,16 @@ public class IPv4Header {
 
     public int getSource() {
         return source;
+    }
+
+    @Override
+    public InetAddress getSourceAddress() {
+        return Net.toInetAddress(source);
+    }
+
+    @Override
+    public InetAddress getDestinationAddress() {
+        return Net.toInetAddress(destination);
     }
 
     public int getDestination() {
@@ -118,17 +138,20 @@ public class IPv4Header {
         raw.putInt(16, destination);
     }
 
+    @Override
     public void swapSourceAndDestination() {
         int tmp = source;
         setSource(destination);
         setDestination(tmp);
     }
 
+    @Override
     public ByteBuffer getRaw() {
         raw.rewind();
         return raw.slice();
     }
 
+    @Override
     public IPv4Header copyTo(ByteBuffer target) {
         raw.rewind();
         ByteBuffer slice = Binary.slice(target, target.position(), getHeaderLength());
@@ -140,6 +163,7 @@ public class IPv4Header {
         return new IPv4Header(Binary.copy(raw));
     }
 
+    @Override
     public void computeChecksum() {
         // reset checksum field
         setChecksum((short) 0);

@@ -36,7 +36,7 @@ public class Router {
         this.selector = selector;
     }
 
-    public void sendToNetwork(IPv4Packet packet) {
+    public void sendToNetwork(IPPacket packet) {
         if (!packet.isValid()) {
             Log.w(TAG, "Dropping invalid packet");
             if (Log.isVerboseEnabled()) {
@@ -45,30 +45,32 @@ public class Router {
             return;
         }
         try {
-            Connection connection = getConnection(packet.getIpv4Header(), packet.getTransportHeader());
+            Connection connection = getConnection(packet);
             connection.sendToNetwork(packet);
         } catch (IOException e) {
             Log.e(TAG, "Cannot create connection, dropping packet", e);
         }
     }
 
-    private Connection getConnection(IPv4Header ipv4Header, TransportHeader transportHeader) throws IOException {
-        ConnectionId id = ConnectionId.from(ipv4Header, transportHeader);
+    private Connection getConnection(IPPacket packet) throws IOException {
+        ConnectionId id = ConnectionId.from(packet);
         Connection connection = find(id);
         if (connection == null) {
-            connection = createConnection(id, ipv4Header, transportHeader);
+            connection = createConnection(id, packet);
             connections.add(connection);
         }
         return connection;
     }
 
-    private Connection createConnection(ConnectionId id, IPv4Header ipv4Header, TransportHeader transportHeader) throws IOException {
+    private Connection createConnection(ConnectionId id, IPPacket packet) throws IOException {
         IPv4Header.Protocol protocol = id.getProtocol();
+        IPHeader ipHeader = packet.getIPHeader();
+        TransportHeader transportHeader = packet.getTransportHeader();
         if (protocol == IPv4Header.Protocol.UDP) {
-            return new UDPConnection(id, client, selector, ipv4Header, (UDPHeader) transportHeader);
+            return new UDPConnection(id, client, selector, ipHeader, (UDPHeader) transportHeader);
         }
         if (protocol == IPv4Header.Protocol.TCP) {
-            return new TCPConnection(id, client, selector, ipv4Header, (TCPHeader) transportHeader);
+            return new TCPConnection(id, client, selector, ipHeader, (TCPHeader) transportHeader);
         }
         throw new UnsupportedOperationException("Unsupported protocol: " + protocol);
     }

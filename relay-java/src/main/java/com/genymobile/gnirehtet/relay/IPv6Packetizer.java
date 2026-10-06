@@ -21,29 +21,29 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 
 /**
- * Convert from level 5 to level 3 by appending correct IP and transport headers.
+ * Convert from level 5 to level 3 by appending correct IPv6 and transport headers.
  */
-public class Packetizer implements IPPacketizer {
+public class IPv6Packetizer implements IPPacketizer {
 
     private final ByteBuffer buffer = ByteBuffer.allocate(IPPacket.MAX_PACKET_LENGTH);
     private final ByteBuffer payloadBuffer;
 
-    private final IPv4Header responseIPv4Header;
+    private final IPv6Header responseIPv6Header;
     private final TransportHeader responseTransportHeader;
 
-    public Packetizer(IPv4Header ipv4Header, TransportHeader transportHeader) {
-        responseIPv4Header = ipv4Header.copyTo(buffer);
+    public IPv6Packetizer(IPv6Header ipv6Header, TransportHeader transportHeader) {
+        responseIPv6Header = ipv6Header.copyTo(buffer);
         responseTransportHeader = transportHeader.copyTo(buffer);
         payloadBuffer = buffer.slice();
     }
 
     @Override
     public IPHeader getResponseHeader() {
-        return responseIPv4Header;
+        return responseIPv6Header;
     }
 
-    public IPv4Header getResponseIPv4Header() {
-        return responseIPv4Header;
+    public IPv6Header getResponseIPv6Header() {
+        return responseIPv6Header;
     }
 
     @Override
@@ -52,13 +52,13 @@ public class Packetizer implements IPPacketizer {
     }
 
     @Override
-    public IPv4Packet packetizeEmptyPayload() {
+    public IPv6Packet packetizeEmptyPayload() {
         payloadBuffer.limit(0).position(0);
         return inflate();
     }
 
     @Override
-    public IPv4Packet packetize(ReadableByteChannel channel, int maxChunkSize) throws IOException {
+    public IPv6Packet packetize(ReadableByteChannel channel, int maxChunkSize) throws IOException {
         payloadBuffer.limit(maxChunkSize).position(0);
         int payloadLength = channel.read(payloadBuffer);
         if (payloadLength == -1) {
@@ -69,24 +69,24 @@ public class Packetizer implements IPPacketizer {
     }
 
     @Override
-    public IPv4Packet packetize(ReadableByteChannel channel) throws IOException {
+    public IPv6Packet packetize(ReadableByteChannel channel) throws IOException {
         return packetize(channel, payloadBuffer.capacity());
     }
 
-    private IPv4Packet inflate() {
+    private IPv6Packet inflate() {
         int payloadLength = payloadBuffer.remaining();
         buffer.limit(payloadBuffer.arrayOffset() + payloadBuffer.limit()).position(0);
 
-        int ipv4HeaderLength = responseIPv4Header.getHeaderLength();
+        int ipv6HeaderLength = responseIPv6Header.getHeaderLength();
         int transportHeaderLength = responseTransportHeader.getHeaderLength();
-        int totalLength = ipv4HeaderLength + transportHeaderLength + payloadLength;
+        int totalLength = ipv6HeaderLength + transportHeaderLength + payloadLength;
 
-        responseIPv4Header.setTotalLength(totalLength);
+        responseIPv6Header.setTotalLength(totalLength);
         responseTransportHeader.setPayloadLength(payloadLength);
 
-        // In order to avoid copies, buffer is shared with this IPv4Packet instance that is returned.
+        // In order to avoid copies, buffer is shared with this IPv6Packet instance that is returned.
         // Don't use it after another call to packetize()!
-        IPv4Packet packet = new IPv4Packet(buffer);
+        IPv6Packet packet = new IPv6Packet(buffer);
         packet.computeChecksums();
         return packet;
     }

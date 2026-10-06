@@ -174,7 +174,15 @@ public class TCPHeader implements TransportHeader {
     }
 
     @Override
-    public void computeChecksum(IPv4Header ipv4Header, ByteBuffer payload) {
+    public void computeChecksum(IPHeader ipHeader, ByteBuffer payload) {
+        if (ipHeader instanceof IPv6Header) {
+            computeChecksumV6((IPv6Header) ipHeader, payload);
+        } else {
+            computeChecksumV4((IPv4Header) ipHeader, payload);
+        }
+    }
+
+    private void computeChecksumV4(IPv4Header ipv4Header, ByteBuffer payload) {
         // checksum computation is the most CPU-intensive task in gnirehtet
         // prefer optimization over readability
         byte[] rawArray = raw.array();
@@ -196,6 +204,52 @@ public class TCPHeader implements TransportHeader {
         sum += destination & 0xffff;
         sum += IPv4Header.Protocol.TCP.getNumber();
         sum += length;
+
+        // reset checksum field
+        setChecksum((short) 0);
+
+        for (int i = 0; i < headerLength / 2; ++i) {
+            // compute a 16-bit value from two 8-bit values manually
+            sum += ((rawArray[rawOffset + 2 * i] & 0xff) << 8) | (rawArray[rawOffset + 2 * i + 1] & 0xff);
+        }
+
+        int payloadLength = length - headerLength;
+        assert payloadLength == payload.limit() : "Payload length does not match";
+        for (int i = 0; i < payloadLength / 2; ++i) {
+            // compute a 16-bit value from two 8-bit values manually
+            sum += ((payloadArray[payloadOffset + 2 * i] & 0xff) << 8) | (payloadArray[payloadOffset + 2 * i + 1] & 0xff);
+        }
+        if (payloadLength % 2 != 0) {
+            sum += (payloadArray[payloadOffset + payloadLength - 1] & 0xff) << 8;
+        }
+
+        while ((sum & ~0xffff) != 0) {
+            sum = (sum & 0xffff) + (sum >> 16);
+        }
+        setChecksum((short) ~sum);
+    }
+
+    private void computeChecksumV6(IPv6Header ipv6Header, ByteBuffer payload) {
+        // TCP pseudo-header checksum (cf RFC 8200 section 8.1)
+        byte[] rawArray = raw.array();
+        int rawOffset = raw.arrayOffset();
+
+        byte[] payloadArray = payload.array();
+        int payloadOffset = payload.arrayOffset();
+
+        byte[] source = ipv6Header.getSource();
+        byte[] destination = ipv6Header.getDestination();
+        int length = ipv6Header.getTotalLength() - ipv6Header.getHeaderLength();
+        assert (length & ~0xffff) == 0 : "Length cannot take more than 16 bits"; // by design
+
+        int sum = 0;
+        for (int i = 0; i < 16; i += 2) {
+            sum += ((source[i] & 0xff) << 8) | (source[i + 1] & 0xff);
+            sum += ((destination[i] & 0xff) << 8) | (destination[i + 1] & 0xff);
+        }
+        sum += length >>> 16;
+        sum += length & 0xffff;
+        sum += IPv4Header.Protocol.TCP.getNumber();
 
         // reset checksum field
         setChecksum((short) 0);

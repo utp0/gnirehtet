@@ -34,7 +34,7 @@ public class Client {
     private static final String TAG = Client.class.getSimpleName();
 
     private static final int MAX_COMPRESSION_CHUNK_LENGTH = 16 * 1024;
-    private static final int MAX_DECOMPRESSED_FRAME_LENGTH = 2 * IPv4Packet.MAX_PACKET_LENGTH;
+    private static final int MAX_DECOMPRESSED_FRAME_LENGTH = 2 * IPPacket.MAX_PACKET_LENGTH;
 
     private static int nextId = 0;
 
@@ -46,8 +46,8 @@ public class Client {
 
     private final int compressionAlgorithm;
 
-    private final IPv4PacketBuffer clientToNetwork = new IPv4PacketBuffer();
-    private final StreamBuffer networkToClient = new StreamBuffer(16 * IPv4Packet.MAX_PACKET_LENGTH);
+    private final IPPacketBuffer clientToNetwork = new IPPacketBuffer();
+    private final StreamBuffer networkToClient = new StreamBuffer(16 * IPPacket.MAX_PACKET_LENGTH);
     private final Router router;
 
     private final List<PacketSource> pendingPacketSources = new ArrayList<>();
@@ -377,8 +377,8 @@ public class Client {
     }
 
     private void pushToNetwork() {
-        IPv4Packet packet;
-        while ((packet = clientToNetwork.asIPv4Packet()) != null) {
+        IPPacket packet;
+        while ((packet = clientToNetwork.asIPPacket()) != null) {
             router.sendToNetwork(packet);
             clientToNetwork.next();
         }
@@ -407,7 +407,7 @@ public class Client {
         }
     }
 
-    public boolean sendToClient(IPv4Packet packet) {
+    public boolean sendToClient(IPPacket packet) {
         if (networkToClient.remaining() < packet.getRawLength()) {
             Log.w(TAG, "Client buffer full");
             return false;
@@ -418,7 +418,7 @@ public class Client {
     }
 
     public void consume(PacketSource source) {
-        IPv4Packet packet = source.get();
+        IPPacket packet = source.get();
         if (sendToClient(packet)) {
             source.next();
             return;
@@ -431,7 +431,7 @@ public class Client {
         Iterator<PacketSource> iterator = pendingPacketSources.iterator();
         while (iterator.hasNext()) {
             PacketSource packetSource = iterator.next();
-            IPv4Packet packet = packetSource.get();
+            IPPacket packet = packetSource.get();
             if (sendToClient(packet)) {
                 packetSource.next();
                 Log.d(TAG, "Pending packet sent to client (" + packet.getRawLength() + ")");

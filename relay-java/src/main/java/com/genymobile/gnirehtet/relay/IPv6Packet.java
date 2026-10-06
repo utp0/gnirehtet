@@ -19,38 +19,36 @@ package com.genymobile.gnirehtet.relay;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
-public class IPv4Packet implements IPPacket {
+@SuppressWarnings("checkstyle:MagicNumber")
+public class IPv6Packet implements IPPacket {
 
-    private static final String TAG = IPv4Packet.class.getSimpleName();
-
-    @SuppressWarnings("checkstyle:MagicNumber")
-    public static final int MAX_PACKET_LENGTH = 1 << 16; // packet length is stored on 16 bits
+    private static final String TAG = IPv6Packet.class.getSimpleName();
 
     private final ByteBuffer raw;
-    private final IPv4Header ipv4Header;
+    private final IPv6Header ipv6Header;
     private final TransportHeader transportHeader;
 
-    public IPv4Packet(ByteBuffer raw) {
+    public IPv6Packet(ByteBuffer raw) {
         this.raw = raw;
         raw.rewind();
 
         if (Log.isVerboseEnabled()) {
-            Log.v(TAG, "IPv4Packet: " + Binary.buildPacketString(raw));
+            Log.v(TAG, "IPv6Packet: " + Binary.buildPacketString(raw));
         }
 
-        ipv4Header = new IPv4Header(raw.duplicate());
-        if (!ipv4Header.isSupported()) {
-            Log.d(TAG, "Unsupported IPv4 headers");
+        ipv6Header = new IPv6Header(raw.duplicate());
+        if (!ipv6Header.isSupported()) {
+            Log.d(TAG, "Unsupported IPv6 headers");
             transportHeader = null;
             return;
         }
         transportHeader = createTransportHeader();
-        raw.limit(ipv4Header.getTotalLength());
+        raw.limit(Math.min(ipv6Header.getTotalLength(), raw.capacity()));
     }
 
     @Override
     public int getVersion() {
-        return 4;
+        return 6;
     }
 
     @Override
@@ -59,29 +57,29 @@ public class IPv4Packet implements IPPacket {
     }
 
     private TransportHeader createTransportHeader() {
-        IPv4Header.Protocol protocol = ipv4Header.getProtocol();
+        IPv4Header.Protocol protocol = ipv6Header.getProtocol();
         switch (protocol) {
             case UDP:
                 return new UDPHeader(getRawTransport());
             case TCP:
                 return new TCPHeader(getRawTransport());
             default:
-                throw new AssertionError("Should be unreachable if ipv4Header.isSupported()");
+                throw new AssertionError("Should be unreachable if ipv6Header.isSupported()");
         }
     }
 
     private ByteBuffer getRawTransport() {
-        raw.position(ipv4Header.getHeaderLength());
+        raw.position(IPv6Header.IPV6_HEADER_LENGTH);
         return raw.slice();
     }
 
     @Override
     public IPHeader getIPHeader() {
-        return ipv4Header;
+        return ipv6Header;
     }
 
-    public IPv4Header getIpv4Header() {
-        return ipv4Header;
+    public IPv6Header getIpv6Header() {
+        return ipv6Header;
     }
 
     @Override
@@ -91,22 +89,22 @@ public class IPv4Packet implements IPPacket {
 
     @Override
     public IPv4Header.Protocol getProtocol() {
-        return ipv4Header.getProtocol();
+        return ipv6Header.getProtocol();
     }
 
     @Override
     public InetAddress getSourceAddress() {
-        return ipv4Header.getSourceAddress();
+        return ipv6Header.getSourceAddress();
     }
 
     @Override
     public InetAddress getDestinationAddress() {
-        return ipv4Header.getDestinationAddress();
+        return ipv6Header.getDestinationAddress();
     }
 
     @Override
     public void swapSourceAndDestination() {
-        ipv4Header.swapSourceAndDestination();
+        ipv6Header.swapSourceAndDestination();
         transportHeader.swapSourceAndDestination();
     }
 
@@ -123,19 +121,19 @@ public class IPv4Packet implements IPPacket {
 
     @Override
     public ByteBuffer getPayload() {
-        int headersLength = ipv4Header.getHeaderLength() + transportHeader.getHeaderLength();
+        int headersLength = ipv6Header.getHeaderLength() + transportHeader.getHeaderLength();
         raw.position(headersLength);
         return raw.slice();
     }
 
     @Override
     public int getPayloadLength() {
-        return raw.limit() - ipv4Header.getHeaderLength() - transportHeader.getHeaderLength();
+        return raw.limit() - ipv6Header.getHeaderLength() - transportHeader.getHeaderLength();
     }
 
     @Override
     public void computeChecksums() {
-        ipv4Header.computeChecksum();
-        transportHeader.computeChecksum(ipv4Header, getPayload());
+        // IPv6 has no header checksum
+        transportHeader.computeChecksum(ipv6Header, getPayload());
     }
 }

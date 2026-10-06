@@ -17,6 +17,9 @@
 package com.genymobile.gnirehtet.relay;
 
 import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.StandardProtocolFamily;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -27,8 +30,8 @@ public class UDPConnection extends AbstractConnection {
 
     private static final String TAG = UDPConnection.class.getSimpleName();
 
-    private final DatagramBuffer clientToNetwork = new DatagramBuffer(4 * IPv4Packet.MAX_PACKET_LENGTH);
-    private final Packetizer networkToClient;
+    private final DatagramBuffer clientToNetwork = new DatagramBuffer(4 * IPPacket.MAX_PACKET_LENGTH);
+    private final IPPacketizer networkToClient;
 
     private final DatagramChannel channel;
     private final SelectionKey selectionKey;
@@ -36,11 +39,15 @@ public class UDPConnection extends AbstractConnection {
 
     private long idleSince;
 
-    public UDPConnection(ConnectionId id, Client client, Selector selector, IPv4Header ipv4Header, UDPHeader udpHeader) throws IOException {
+    public UDPConnection(ConnectionId id, Client client, Selector selector, IPHeader ipHeader, UDPHeader udpHeader) throws IOException {
         super(id, client);
 
-        networkToClient = new Packetizer(ipv4Header, udpHeader);
-        networkToClient.getResponseIPv4Header().swapSourceAndDestination();
+        if (ipHeader.getVersion() == 6) {
+            networkToClient = new IPv6Packetizer((IPv6Header) ipHeader, udpHeader);
+        } else {
+            networkToClient = new Packetizer((IPv4Header) ipHeader, udpHeader);
+        }
+        networkToClient.getResponseHeader().swapSourceAndDestination();
         networkToClient.getResponseTransportHeader().swapSourceAndDestination();
 
         touch();
@@ -61,7 +68,7 @@ public class UDPConnection extends AbstractConnection {
     }
 
     @Override
-    public void sendToNetwork(IPv4Packet packet) {
+    public void sendToNetwork(IPPacket packet) {
         if (!clientToNetwork.readFrom(packet.getPayload())) {
             logw(TAG, "Cannot send to network, dropping packet");
             return;
@@ -87,7 +94,10 @@ public class UDPConnection extends AbstractConnection {
 
     private DatagramChannel createChannel() throws IOException {
         logi(TAG, "Open");
-        DatagramChannel datagramChannel = DatagramChannel.open();
+        InetAddress destination = getRewrittenDestination().getAddress();
+        DatagramChannel datagramChannel = destination instanceof Inet6Address
+                ? DatagramChannel.open(StandardProtocolFamily.INET6)
+                : DatagramChannel.open(StandardProtocolFamily.INET);
         datagramChannel.configureBlocking(false);
         datagramChannel.connect(getRewrittenDestination());
         return datagramChannel;
@@ -98,7 +108,7 @@ public class UDPConnection extends AbstractConnection {
     }
 
     private void processReceive() {
-        IPv4Packet packet = read();
+        IPPacket packet = read();
         if (packet == null) {
             close();
             return;
@@ -112,7 +122,7 @@ public class UDPConnection extends AbstractConnection {
         }
     }
 
-    private IPv4Packet read() {
+    private IPPacket read() {
         try {
             return networkToClient.packetize(channel);
         } catch (IOException e) {
@@ -130,7 +140,7 @@ public class UDPConnection extends AbstractConnection {
         }
     }
 
-    private void pushToClient(IPv4Packet packet) {
+    private void pushToClient(IPPacket packet) {
         if (!sendToClient(packet)) {
             logw(TAG, "Cannot send to client, dropping packet");
             return;

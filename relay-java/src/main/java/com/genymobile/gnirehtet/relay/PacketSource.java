@@ -29,7 +29,7 @@ package com.genymobile.gnirehtet.relay;
  */
 public interface PacketSource {
 
-    IPv4Packet get();
+    IPPacket get();
 
     void next();
 }

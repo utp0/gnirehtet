@@ -17,6 +17,9 @@
 package com.genymobile.gnirehtet.relay;
 
 import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.StandardProtocolFamily;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -28,8 +31,10 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
 
     // same value as GnirehtetService.MTU in the client
     private static final int MTU = 0x4000;
-    // 20 bytes for IP headers, 20 bytes for TCP headers
+    // 20 bytes for IPv4 headers, 20 bytes for TCP headers
     private static final int MAX_PAYLOAD_SIZE = MTU - 20 - 20;
+    // 40 bytes for IPv6 headers, 20 bytes for TCP headers
+    private static final int MAX_PAYLOAD_SIZE_V6 = MTU - 40 - 20;
 
     private static final Random RANDOM = new Random();
 
@@ -55,13 +60,14 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
         }
     }
 
-    private final StreamBuffer clientToNetwork = new StreamBuffer(4 * IPv4Packet.MAX_PACKET_LENGTH);
-    private final Packetizer networkToClient;
-    private IPv4Packet packetForClient;
+    private final StreamBuffer clientToNetwork = new StreamBuffer(4 * IPPacket.MAX_PACKET_LENGTH);
+    private final IPPacketizer networkToClient;
+    private IPPacket packetForClient;
 
     private final SocketChannel channel;
     private final SelectionKey selectionKey;
     private int interests;
+    private final int maxPayloadSize;
 
     private State state;
     private int synSequenceNumber;
@@ -72,14 +78,20 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
     private boolean finReceived;
     private int clientWindow;
 
-    public TCPConnection(ConnectionId id, Client client, Selector selector, IPv4Header ipv4Header, TCPHeader tcpHeader) throws IOException {
+    public TCPConnection(ConnectionId id, Client client, Selector selector, IPHeader ipHeader, TCPHeader tcpHeader) throws IOException {
         super(id, client);
 
         TCPHeader shrinkedTcpHeader = tcpHeader.copy();
         shrinkedTcpHeader.shrinkOptions(); // no TCP options
 
-        networkToClient = new Packetizer(ipv4Header, shrinkedTcpHeader);
-        networkToClient.getResponseIPv4Header().swapSourceAndDestination();
+        if (ipHeader.getVersion() == 6) {
+            networkToClient = new IPv6Packetizer((IPv6Header) ipHeader, shrinkedTcpHeader);
+            maxPayloadSize = MAX_PAYLOAD_SIZE_V6;
+        } else {
+            networkToClient = new Packetizer((IPv4Header) ipHeader, shrinkedTcpHeader);
+            maxPayloadSize = MAX_PAYLOAD_SIZE;
+        }
+        networkToClient.getResponseHeader().swapSourceAndDestination();
         networkToClient.getResponseTransportHeader().swapSourceAndDestination();
 
         SelectionHandler selectionHandler = (selectionKey) -> {
@@ -117,7 +129,7 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
             assert packetForClient == null : "The IPv4Packet shares the networkToClient buffer, it must not be corrupted";
             int remainingClientWindow = getRemainingClientWindow();
             assert remainingClientWindow > 0 : "If remainingClientWindow is 0, then processReceive() should not have been called";
-            int maxPayloadSize = Math.min(remainingClientWindow, MAX_PAYLOAD_SIZE);
+            int maxPayloadSize = Math.min(remainingClientWindow, this.maxPayloadSize);
             updateHeaders(TCPHeader.FLAG_ACK | TCPHeader.FLAG_PSH);
             packetForClient = networkToClient.packetize(channel, maxPayloadSize);
             if (packetForClient == null) {
@@ -193,20 +205,23 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
 
     private SocketChannel createChannel() throws IOException {
         logi(TAG, "Open");
-        SocketChannel socketChannel = SocketChannel.open();
+        InetAddress destination = getRewrittenDestination().getAddress();
+        SocketChannel socketChannel = destination instanceof Inet6Address
+                ? SocketChannel.open(StandardProtocolFamily.INET6)
+                : SocketChannel.open(StandardProtocolFamily.INET);
         socketChannel.configureBlocking(false);
         socketChannel.connect(getRewrittenDestination());
         return socketChannel;
     }
 
     @Override
-    public void sendToNetwork(IPv4Packet packet) {
+    public void sendToNetwork(IPPacket packet) {
         handlePacket(packet);
         logd(TAG, "current ack=" + acknowledgementNumber);
         updateInterests();
     }
 
-    private void handlePacket(IPv4Packet packet) {
+    private void handlePacket(IPPacket packet) {
         TCPHeader tcpHeader = (TCPHeader) packet.getTransportHeader();
         if (state == null) {
             handleFirstPacket(packet);
@@ -255,7 +270,7 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
         }
     }
 
-    private void handleFirstPacket(IPv4Packet packet) {
+    private void handleFirstPacket(IPPacket packet) {
         logd(TAG, "handleFirstPacket()");
         TCPHeader tcpHeader = (TCPHeader) packet.getTransportHeader();
         if (!tcpHeader.isSyn()) {
@@ -277,7 +292,7 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
         logd(TAG, "State = " + state);
     }
 
-    private void handleDuplicateSyn(IPv4Packet packet) {
+    private void handleDuplicateSyn(IPPacket packet) {
         TCPHeader tcpHeader = (TCPHeader) packet.getTransportHeader();
         int theirSequenceNumber = tcpHeader.getSequenceNumber();
         if (state == State.SYN_SENT) {
@@ -344,7 +359,7 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
         }
     }
 
-    private void handleAck(IPv4Packet packet) {
+    private void handleAck(IPPacket packet) {
         logd(TAG, "handleAck()");
         if (state == State.SYN_RECEIVED) {
             state = State.ESTABLISHED;
@@ -400,9 +415,9 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
         close();
     }
 
-    private IPv4Packet createEmptyResponsePacket(int flags) {
+    private IPPacket createEmptyResponsePacket(int flags) {
         updateHeaders(flags);
-        IPv4Packet packet = networkToClient.packetizeEmptyPayload();
+        IPPacket packet = networkToClient.packetizeEmptyPayload();
         logd(TAG, "Forging empty response (flags=" + flags + ") " + numbers());
         if (Log.isVerboseEnabled()) {
             logd(TAG, Binary.buildPacketString(packet.getRaw()));
@@ -462,13 +477,13 @@ public class TCPConnection extends AbstractConnection implements PacketSource {
     }
 
     @Override
-    public IPv4Packet get() {
+    public IPPacket get() {
         // TODO update only when necessary
         updateAcknowledgementNumber(packetForClient);
         return packetForClient;
     }
 
-    private void updateAcknowledgementNumber(IPv4Packet packet) {
+    private void updateAcknowledgementNumber(IPPacket packet) {
         TCPHeader tcpHeader = (TCPHeader) packet.getTransportHeader();
         tcpHeader.setAcknowledgementNumber(acknowledgementNumber);
         packet.computeChecksums();

@@ -16,12 +16,14 @@
 
 package com.genymobile.gnirehtet.relay;
 
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 
 public abstract class AbstractConnection implements Connection {
 
-    private static final int LOCALHOST_FORWARD = 0x0a000202; // 10.0.2.2 must be forwarded to localhost
+    private static final byte[] LOCALHOST_FORWARD = {10, 0, 0, 2}; // 10.0.2.2 must be forwarded to localhost
 
     private final ConnectionId id;
     private final Client client;
@@ -45,12 +47,15 @@ public abstract class AbstractConnection implements Connection {
         client.consume(source);
     }
 
-    protected boolean sendToClient(IPv4Packet packet) {
+    protected boolean sendToClient(IPPacket packet) {
         return client.sendToClient(packet);
     }
 
-    private static InetAddress getRewrittenAddress(int ip) {
-        return ip == LOCALHOST_FORWARD ? InetAddress.getLoopbackAddress() : Net.toInetAddress(ip);
+    private static InetAddress getRewrittenAddress(InetAddress address) {
+        if (address instanceof Inet4Address && Arrays.equals(address.getAddress(), LOCALHOST_FORWARD)) {
+            return InetAddress.getLoopbackAddress();
+        }
+        return address;
     }
 
     /**
@@ -59,9 +64,9 @@ public abstract class AbstractConnection implements Connection {
      * @return Destination to connect to.
      */
     protected InetSocketAddress getRewrittenDestination() {
-        int destIp = id.getDestinationIp();
+        InetAddress destAddress = getRewrittenAddress(id.getDestinationAddress());
         int port = id.getDestinationPort();
-        return new InetSocketAddress(getRewrittenAddress(destIp), port);
+        return new InetSocketAddress(destAddress, port);
     }
 
     public void logv(String tag, String message, Throwable e) {

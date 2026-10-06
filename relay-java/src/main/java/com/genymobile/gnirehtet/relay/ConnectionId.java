@@ -16,16 +16,19 @@
 
 package com.genymobile.gnirehtet.relay;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+
 public class ConnectionId {
 
     private final IPv4Header.Protocol protocol;
-    private final int sourceIp;
+    private final InetAddress sourceIp;
     private final short sourcePort;
-    private final int destIp;
+    private final InetAddress destIp;
     private final short destPort;
     private final String idString;
 
-    public ConnectionId(IPv4Header.Protocol protocol, int sourceIp, short sourcePort, int destIp, short destPort) {
+    public ConnectionId(IPv4Header.Protocol protocol, InetAddress sourceIp, short sourcePort, InetAddress destIp, short destPort) {
         this.protocol = protocol;
         this.sourceIp = sourceIp;
         this.sourcePort = sourcePort;
@@ -33,14 +36,15 @@ public class ConnectionId {
         this.destPort = destPort;
 
         // compute the String representation only once
-        idString = protocol + " " + Net.toString(sourceIp, sourcePort) + " -> " + Net.toString(destIp, destPort);
+        idString = protocol + " " + Net.toString(new InetSocketAddress(sourceIp, Short.toUnsignedInt(sourcePort)))
+                + " -> " + Net.toString(new InetSocketAddress(destIp, Short.toUnsignedInt(destPort)));
     }
 
     public IPv4Header.Protocol getProtocol() {
         return protocol;
     }
 
-    public int getSourceIp() {
+    public InetAddress getSourceAddress() {
         return sourceIp;
     }
 
@@ -48,7 +52,7 @@ public class ConnectionId {
         return Short.toUnsignedInt(sourcePort);
     }
 
-    public int getDestinationIp() {
+    public InetAddress getDestinationAddress() {
         return destIp;
     }
 
@@ -67,9 +71,9 @@ public class ConnectionId {
         }
 
         ConnectionId that = (ConnectionId) o;
-        return sourceIp == that.sourceIp
+        return sourceIp.equals(that.sourceIp)
                 && sourcePort == that.sourcePort
-                && destIp == that.destIp
+                && destIp.equals(that.destIp)
                 && destPort == that.destPort
                 && protocol == that.protocol;
     }
@@ -77,9 +81,9 @@ public class ConnectionId {
     @Override
     public int hashCode() {
         int result = protocol.hashCode();
-        result = 31 * result + sourceIp;
+        result = 31 * result + sourceIp.hashCode();
         result = 31 * result + (int) sourcePort;
-        result = 31 * result + destIp;
+        result = 31 * result + destIp.hashCode();
         result = 31 * result + (int) destPort;
         return result;
     }
@@ -89,12 +93,9 @@ public class ConnectionId {
         return idString;
     }
 
-    public static ConnectionId from(IPv4Header ipv4Header, TransportHeader transportHeader) {
-        IPv4Header.Protocol protocol = ipv4Header.getProtocol();
-        int sourceAddress = ipv4Header.getSource();
-        short sourcePort = (short) transportHeader.getSourcePort();
-        int destinationAddress = ipv4Header.getDestination();
-        short destinationPort = (short) transportHeader.getDestinationPort();
-        return new ConnectionId(protocol, sourceAddress, sourcePort, destinationAddress, destinationPort);
+    public static ConnectionId from(IPPacket packet) {
+        TransportHeader transportHeader = packet.getTransportHeader();
+        return new ConnectionId(packet.getProtocol(), packet.getSourceAddress(), (short) transportHeader.getSourcePort(),
+                packet.getDestinationAddress(), (short) transportHeader.getDestinationPort());
     }
 }

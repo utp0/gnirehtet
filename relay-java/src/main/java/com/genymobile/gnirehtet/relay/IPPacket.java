@@ -16,31 +16,40 @@
 
 package com.genymobile.gnirehtet.relay;
 
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
-public interface TransportHeader {
+/**
+ * Common abstraction for IPv4 and IPv6 packets.
+ */
+@SuppressWarnings("checkstyle:MagicNumber")
+public interface IPPacket {
 
-    int getSourcePort();
+    int MAX_PACKET_LENGTH = (1 << 16) + 40; // maximum IPv6 packet: 40B header + 64K payload
 
-    int getDestinationPort();
+    int getVersion();
 
-    void setSourcePort(int port);
+    boolean isValid();
 
-    void setDestinationPort(int port);
+    IPHeader getIPHeader();
 
-    int getHeaderLength();
+    TransportHeader getTransportHeader();
 
-    void setPayloadLength(int payloadLength);
+    IPv4Header.Protocol getProtocol();
+
+    InetAddress getSourceAddress();
+
+    InetAddress getDestinationAddress();
+
+    void swapSourceAndDestination();
 
     ByteBuffer getRaw();
 
-    TransportHeader copyTo(ByteBuffer buffer);
+    int getRawLength();
 
-    void computeChecksum(IPHeader ipHeader, ByteBuffer payload);
+    ByteBuffer getPayload();
 
-    default void swapSourceAndDestination() {
-        int tmp = getSourcePort();
-        setSourcePort(getDestinationPort());
-        setDestinationPort(tmp);
-    }
+    int getPayloadLength();
+
+    void computeChecksums();
 }
