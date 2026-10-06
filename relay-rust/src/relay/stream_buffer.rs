@@ -73,6 +73,23 @@ impl StreamBuffer {
         }
     }
 
+    /// Copy up to `destination.len()` bytes of the stream content into `destination`, and consume
+    /// them.
+    pub fn copy_to(&mut self, destination: &mut [u8]) -> usize {
+        let count = std::cmp::min(destination.len(), self.size());
+        let buf_len = self.buf.len();
+        if count <= buf_len - self.tail {
+            destination[..count].copy_from_slice(&self.buf[self.tail..self.tail + count]);
+        } else {
+            let first_part = buf_len - self.tail;
+            destination[..first_part].copy_from_slice(&self.buf[self.tail..]);
+            destination[first_part..count].copy_from_slice(&self.buf[..count - first_part]);
+        }
+        self.tail = (self.tail + count) % buf_len;
+        self.optimize();
+        count
+    }
+
     pub fn read_from(&mut self, source: &[u8]) {
         assert!(
             source.len() <= self.remaining(),

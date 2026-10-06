@@ -81,8 +81,7 @@ impl Ipv6HeaderData {
 
     pub fn total_length(&self) -> u16 {
         // saturate: jumbo payloads (>65535-40) are not supported, treat as max
-        (IPV6_HEADER_LENGTH as u32 + u32::from(self.payload_length)).min(u32::from(u16::MAX))
-            as u16
+        (IPV6_HEADER_LENGTH as u32 + u32::from(self.payload_length)).min(u32::from(u16::MAX)) as u16
     }
 
     pub fn protocol(&self) -> Protocol {
@@ -222,10 +221,8 @@ mod tests {
         raw.write_u16::<BigEndian>(12).unwrap(); // payload length 8 + 4
         raw.write_u8(17).unwrap(); // next header (UDP)
         raw.write_u8(64).unwrap(); // hop limit
-        // source fd00::2
-        raw.extend_from_slice(&[
-            0xfd, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02,
-        ]);
+                                   // source fd00::2
+        raw.extend_from_slice(&[0xfd, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02]);
         // destination 2001:db8::1
         raw.extend_from_slice(&[
             0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01,
@@ -241,9 +238,7 @@ mod tests {
         assert_eq!(52, data.total_length());
         assert_eq!(Protocol::Udp, data.protocol());
         assert_eq!(
-            [
-                0xfd, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02
-            ],
+            [0xfd, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02],
             data.source()
         );
     }

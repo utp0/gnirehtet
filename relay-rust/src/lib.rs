@@ -17,10 +17,11 @@
 #![allow(dead_code)]
 mod relay;
 pub use crate::relay::byte_buffer;
+pub use crate::relay::tunnel_compression;
 
 use crate::relay::Relay;
 use std::io;
 
-pub fn relay(port: u16, conf: String) -> io::Result<()> {
-    Relay::new(port, conf).run()
+pub fn relay(port: u16, conf: String, compression_algorithm: u8) -> io::Result<()> {
+    Relay::new(port, conf, compression_algorithm).run()
 }

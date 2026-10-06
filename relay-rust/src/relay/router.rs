@@ -105,11 +105,7 @@ impl Router {
         }
     }
 
-    fn connection(
-        &mut self,
-        selector: &mut Selector,
-        ip_packet: &IpPacket,
-    ) -> io::Result<usize> {
+    fn connection(&mut self, selector: &mut Selector, ip_packet: &IpPacket) -> io::Result<usize> {
         let id = ConnectionId::from_ip_packet(ip_packet).expect("No transport");
         let index = match self.find_index(&id) {
             Some(index) => index,

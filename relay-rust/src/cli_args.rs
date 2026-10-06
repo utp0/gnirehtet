@@ -24,6 +24,7 @@ pub const PARAM_PORT: u8 = 1 << 3;
 pub const PARAM_WHITELIST_BUNDLE_IDS: u8 = 1 << 4;
 pub const PARAM_STOP_ON_DISCONNECT: u8 = 1 << 5;
 pub const PARAM_CONF: u8 = 1 << 6;
+pub const PARAM_COMPRESSION: u8 = 1 << 7;
 
 pub const DEFAULT_PORT: u16 = 31416;
 
@@ -35,6 +36,7 @@ pub struct CommandLineArguments {
     whitelist_bundle_ids: Option<String>,
     stop_on_disconnect: bool,
     conf: String,
+    compression: String,
 }
 
 impl CommandLineArguments {
@@ -45,22 +47,55 @@ impl CommandLineArguments {
             app = app.arg(Arg::with_name("serial").index(1).help("The device serial"));
         }
         if (accepted_parameters & PARAM_DNS_SERVERS) != 0 {
-            app = app.arg(Arg::with_name("dns").short("d").takes_value(true).value_name("DNS"));
+            app = app.arg(
+                Arg::with_name("dns")
+                    .short("d")
+                    .takes_value(true)
+                    .value_name("DNS"),
+            );
         }
         if (accepted_parameters & PARAM_ROUTES) != 0 {
-            app = app.arg(Arg::with_name("routes").short("r").takes_value(true).value_name("ROUTE"));
+            app = app.arg(
+                Arg::with_name("routes")
+                    .short("r")
+                    .takes_value(true)
+                    .value_name("ROUTE"),
+            );
         }
         if (accepted_parameters & PARAM_PORT) != 0 {
-            app = app.arg(Arg::with_name("port").short("p").takes_value(true).value_name("PORT"));
+            app = app.arg(
+                Arg::with_name("port")
+                    .short("p")
+                    .takes_value(true)
+                    .value_name("PORT"),
+            );
         }
         if (accepted_parameters & PARAM_WHITELIST_BUNDLE_IDS) != 0 {
-            app = app.arg(Arg::with_name("whitelist").short("b").takes_value(true).value_name("BUNDLE_ID"));
+            app = app.arg(
+                Arg::with_name("whitelist")
+                    .short("b")
+                    .takes_value(true)
+                    .value_name("BUNDLE_ID"),
+            );
         }
         if (accepted_parameters & PARAM_STOP_ON_DISCONNECT) != 0 {
             app = app.arg(Arg::with_name("stop_on_disconnect").short("s"));
         }
         if (accepted_parameters & PARAM_CONF) != 0 {
-            app = app.arg(Arg::with_name("conf").short("c").takes_value(true).value_name("CONF"));
+            app = app.arg(
+                Arg::with_name("conf")
+                    .short("c")
+                    .takes_value(true)
+                    .value_name("CONF"),
+            );
+        }
+        if (accepted_parameters & PARAM_COMPRESSION) != 0 {
+            app = app.arg(
+                Arg::with_name("compression")
+                    .short("z")
+                    .takes_value(true)
+                    .value_name("ALGORITHM"),
+            );
         }
 
         let mut argv: Vec<String> = vec!["gnirehtet".to_string()];
@@ -87,6 +122,7 @@ impl CommandLineArguments {
             whitelist_bundle_ids: matches.value_of("whitelist").map(String::from),
             stop_on_disconnect: matches.is_present("stop_on_disconnect"),
             conf: matches.value_of("conf").unwrap_or("").to_string(),
+            compression: matches.value_of("compression").unwrap_or("").to_string(),
         })
     }
 
@@ -117,14 +153,22 @@ impl CommandLineArguments {
     pub fn conf(&self) -> &str {
         &self.conf
     }
+
+    pub fn compression(&self) -> &str {
+        &self.compression
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const ACCEPT_ALL: u8 =
-        PARAM_SERIAL | PARAM_DNS_SERVERS | PARAM_ROUTES | PARAM_WHITELIST_BUNDLE_IDS | PARAM_STOP_ON_DISCONNECT;
+    const ACCEPT_ALL: u8 = PARAM_SERIAL
+        | PARAM_DNS_SERVERS
+        | PARAM_ROUTES
+        | PARAM_WHITELIST_BUNDLE_IDS
+        | PARAM_STOP_ON_DISCONNECT
+        | PARAM_COMPRESSION;
 
     #[test]
     fn test_no_args() {
@@ -221,5 +265,18 @@ mod tests {
         let raw_args = Vec::<&str>::new();
         let args = CommandLineArguments::parse(ACCEPT_ALL, raw_args).unwrap();
         assert!(!args.stop_on_disconnect())
+    }
+
+    #[test]
+    fn test_compression_parameter() {
+        let raw_args = vec!["-z", "deflate"];
+        let args = CommandLineArguments::parse(ACCEPT_ALL, raw_args).unwrap();
+        assert_eq!("deflate", args.compression());
+    }
+
+    #[test]
+    fn test_no_compression_parameter() {
+        let raw_args = vec!["-z"];
+        assert!(CommandLineArguments::parse(ACCEPT_ALL, raw_args).is_err());
     }
 }

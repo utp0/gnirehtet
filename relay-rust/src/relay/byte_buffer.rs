@@ -37,6 +37,13 @@ impl ByteBuffer {
         Ok(r > 0)
     }
 
+    pub fn read_from_slice(&mut self, source: &[u8]) -> usize {
+        let count = std::cmp::min(source.len(), self.buf.len() - self.head);
+        self.buf[self.head..self.head + count].copy_from_slice(&source[..count]);
+        self.head += count;
+        count
+    }
+
     pub fn peek(&self) -> &[u8] {
         &self.buf[..self.head]
     }

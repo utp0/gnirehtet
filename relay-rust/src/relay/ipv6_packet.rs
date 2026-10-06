@@ -119,8 +119,7 @@ impl<'a> Ipv6Packet<'a> {
         if let Some(ref transport_header_data) = self.transport_header_data {
             let payload_index = transport_header_data.header_length() as usize;
             let (ipv6_header_slice, transport_slice) = self.raw.split_at(transport_index);
-            let (transport_header_slice, payload_slice) =
-                transport_slice.split_at(payload_index);
+            let (transport_header_slice, payload_slice) = transport_slice.split_at(payload_index);
             let ipv6_header = self.ipv6_header_data.bind(ipv6_header_slice);
             let transport_header = transport_header_data.bind(transport_header_slice);
             (ipv6_header, Some((transport_header, payload_slice)))
@@ -191,9 +190,7 @@ mod tests {
         raw.write_u8(17).unwrap(); // UDP
         raw.write_u8(64).unwrap(); // hop limit
         raw.extend_from_slice(&[0xfd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
-        raw.extend_from_slice(&[
-            0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-        ]);
+        raw.extend_from_slice(&[0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
 
         raw.write_u16::<BigEndian>(1234).unwrap();
         raw.write_u16::<BigEndian>(5678).unwrap();

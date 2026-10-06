@@ -33,16 +33,22 @@ pub struct TunnelServer {
     clients: Vec<Rc<RefCell<Client>>>,
     tcp_listener: TcpListener,
     next_client_id: u32,
+    compression_algorithm: u8,
 }
 
 impl TunnelServer {
-    pub fn create(port: u16, selector: &mut Selector) -> io::Result<Rc<RefCell<Self>>> {
+    pub fn create(
+        port: u16,
+        selector: &mut Selector,
+        compression_algorithm: u8,
+    ) -> io::Result<Rc<RefCell<Self>>> {
         let tcp_listener = Self::start_socket(port)?;
         let rc = Rc::new(RefCell::new(Self {
             self_weak: Weak::new(),
             clients: Vec::new(),
             tcp_listener,
             next_client_id: 0,
+            compression_algorithm,
         }));
 
         // keep a shared reference to this
@@ -94,7 +100,13 @@ impl TunnelServer {
                 );
             }
         });
-        let client = Client::create(client_id, selector, stream, on_client_closed)?;
+        let client = Client::create(
+            client_id,
+            selector,
+            stream,
+            on_client_closed,
+            self.compression_algorithm,
+        )?;
         self.clients.push(client);
         info!(target: TAG, "Client #{} connected", client_id);
         Ok(())

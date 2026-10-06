@@ -24,6 +24,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use super::selector::Selector;
+use super::tunnel_compression;
 use super::tunnel_server::TunnelServer;
 use super::udp_connection::IDLE_TIMEOUT_SECONDS;
 use super::CONF_PATH;
@@ -35,12 +36,17 @@ const CLEANING_INTERVAL_SECONDS: i64 = 60;
 
 pub struct Relay {
     port: u16,
-    conf: String
+    conf: String,
+    compression_algorithm: u8,
 }
 
 impl Relay {
-    pub fn new(port: u16, conf: String) -> Self {
-        Self { port, conf }
+    pub fn new(port: u16, conf: String, compression_algorithm: u8) -> Self {
+        Self {
+            port,
+            conf,
+            compression_algorithm,
+        }
     }
 
     pub fn run(&self) -> io::Result<()> {
@@ -51,8 +57,16 @@ impl Relay {
         }
 
         let mut selector = Selector::create().unwrap();
-        let tunnel_server = TunnelServer::create(self.port, &mut selector)?;
+        let tunnel_server =
+            TunnelServer::create(self.port, &mut selector, self.compression_algorithm)?;
         info!(target: TAG, "Relay server started");
+        if self.compression_algorithm != tunnel_compression::ALGORITHM_NONE {
+            info!(
+                target: TAG,
+                "Tunnel compression enabled: {}",
+                tunnel_compression::algorithm_name(self.compression_algorithm)
+            );
+        }
         self.poll_loop(&mut selector, &tunnel_server)
     }
 

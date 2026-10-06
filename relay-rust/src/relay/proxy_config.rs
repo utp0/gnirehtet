@@ -1,13 +1,13 @@
-extern crate iprange;
 extern crate ipnet;
+extern crate iprange;
 
 use serde::Deserialize;
 
-use iprange::IpRange;
 use ipnet::Ipv4Net;
+use iprange::IpRange;
 
 use std::fs;
-use std::net::{SocketAddrV4, Ipv4Addr};
+use std::net::{Ipv4Addr, SocketAddrV4};
 
 use lazy_static::lazy_static;
 use once_cell::sync::OnceCell;
@@ -25,7 +25,7 @@ pub struct ProxyConfig {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ProxyHostConfig {
     proxy: ProxyConfig,
-    hosts: Vec<Ipv4Addr>
+    hosts: Vec<Ipv4Addr>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -36,7 +36,7 @@ pub struct GnirehtetProxyConfig {
     lan_host_iprange: IpRange<Ipv4Net>,
     lan_host: Vec<String>,
     special_proxy_config: ProxyHostConfig,
-    default_proxy_config: ProxyHostConfig
+    default_proxy_config: ProxyHostConfig,
 }
 
 lazy_static! {
@@ -46,11 +46,12 @@ lazy_static! {
         match toml_str {
             Ok(val) => {
                 let mut conf: GnirehtetProxyConfig = toml::from_str(&val).unwrap();
-                let lan_host_range: IpRange<Ipv4Net> = conf.lan_host.iter().map(|s| s.parse().unwrap()).collect();
+                let lan_host_range: IpRange<Ipv4Net> =
+                    conf.lan_host.iter().map(|s| s.parse().unwrap()).collect();
                 conf.lan_host_iprange = lan_host_range;
                 println!("Gnirehtet Proxy Config: \n{:#?}", conf);
                 conf
-            },
+            }
             Err(_) => {
                 if !path.is_empty() {
                     panic!("invalid conf file, please check {}", path);
@@ -65,26 +66,55 @@ lazy_static! {
 pub fn get_proxy_for_addr(addr: SocketAddrV4) -> Option<ProxyConfig> {
     // in lan_host, don't use proxy
     if GNIREHTET_PROXY_CONFIG.lan_host_iprange.contains(addr.ip()) {
-        return None
+        return None;
     }
 
     // in special proxy.hosts, return the specify proxy
-    for (_, host) in GNIREHTET_PROXY_CONFIG.special_proxy_config.hosts.iter().enumerate() {
+    for (_, host) in GNIREHTET_PROXY_CONFIG
+        .special_proxy_config
+        .hosts
+        .iter()
+        .enumerate()
+    {
         if host == addr.ip() {
             return Some(ProxyConfig {
                 proxy_addr: GNIREHTET_PROXY_CONFIG.special_proxy_config.proxy.proxy_addr,
-                proxy_type: GNIREHTET_PROXY_CONFIG.special_proxy_config.proxy.proxy_type.clone(),
-                username: GNIREHTET_PROXY_CONFIG.special_proxy_config.proxy.username.clone(),
-                password: GNIREHTET_PROXY_CONFIG.special_proxy_config.proxy.password.clone()
-            })
+                proxy_type: GNIREHTET_PROXY_CONFIG
+                    .special_proxy_config
+                    .proxy
+                    .proxy_type
+                    .clone(),
+                username: GNIREHTET_PROXY_CONFIG
+                    .special_proxy_config
+                    .proxy
+                    .username
+                    .clone(),
+                password: GNIREHTET_PROXY_CONFIG
+                    .special_proxy_config
+                    .proxy
+                    .password
+                    .clone(),
+            });
         }
     }
 
     // not in lan_host neither proxies.hosts, use default proxy
     Some(ProxyConfig {
         proxy_addr: GNIREHTET_PROXY_CONFIG.default_proxy_config.proxy.proxy_addr,
-        proxy_type: GNIREHTET_PROXY_CONFIG.default_proxy_config.proxy.proxy_type.clone(),
-        username: GNIREHTET_PROXY_CONFIG.default_proxy_config.proxy.username.clone(),
-        password: GNIREHTET_PROXY_CONFIG.default_proxy_config.proxy.password.clone()
+        proxy_type: GNIREHTET_PROXY_CONFIG
+            .default_proxy_config
+            .proxy
+            .proxy_type
+            .clone(),
+        username: GNIREHTET_PROXY_CONFIG
+            .default_proxy_config
+            .proxy
+            .username
+            .clone(),
+        password: GNIREHTET_PROXY_CONFIG
+            .default_proxy_config
+            .proxy
+            .password
+            .clone(),
     })
 }

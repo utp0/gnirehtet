@@ -90,9 +90,7 @@ impl ConnectionId {
 
     pub fn from_ipv4_packet(packet: &Ipv4Packet) -> Option<Self> {
         let (ip_data, transport) = packet.headers_data();
-        transport.map(|t| {
-            Self::from_headers(ip_data, t)
-        })
+        transport.map(|t| Self::from_headers(ip_data, t))
     }
 
     pub fn from_ipv6_packet(packet: &Ipv6Packet) -> Option<Self> {

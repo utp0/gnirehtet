@@ -38,6 +38,10 @@ impl IpPacketBuffer {
         self.buf.read_from(source)
     }
 
+    pub fn read_from_slice(&mut self, source: &[u8]) -> usize {
+        self.buf.read_from_slice(source)
+    }
+
     fn available_packet_length(&self) -> Option<u16> {
         let data = self.buf.peek();
         trace!("Parse packet: {}", binary::build_packet_string(data));
@@ -124,9 +128,7 @@ mod tests {
         raw.write_u8(17).unwrap();
         raw.write_u8(64).unwrap();
         raw.extend_from_slice(&[0xfd, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
-        raw.extend_from_slice(&[
-            0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-        ]);
+        raw.extend_from_slice(&[0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
         raw.write_u16::<BigEndian>(1234).unwrap();
         raw.write_u16::<BigEndian>(5678).unwrap();
         raw.write_u16::<BigEndian>(12).unwrap();

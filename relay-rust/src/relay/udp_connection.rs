@@ -131,7 +131,7 @@ impl UdpConnection {
         udp_socket.connect(id.rewritten_destination())?;
         Ok(udp_socket)
     }
-    
+
     fn remove_from_router(&self) {
         // route is embedded in router which is embedded in client: the client necessarily exists
         let client_rc = self.client.upgrade().expect("Expected client not found");
@@ -227,10 +227,7 @@ impl UdpConnection {
     fn read(&mut self, selector: &mut Selector) -> io::Result<()> {
         let ip_packet = self.network_to_client.packetize(&mut self.socket)?;
         let client_rc = self.client.upgrade().expect("Expected client not found");
-        match client_rc
-            .borrow_mut()
-            .send_to_client(selector, &ip_packet)
-        {
+        match client_rc.borrow_mut().send_to_client(selector, &ip_packet) {
             Ok(_) => {
                 cx_debug!(
                     target: TAG,
@@ -293,10 +290,7 @@ impl Connection for UdpConnection {
             IpPacket::V4(ref p) => p.payload().expect("No payload"),
             IpPacket::V6(ref p) => p.payload().expect("No payload"),
         };
-        match self
-            .client_to_network
-            .read_from(payload)
-        {
+        match self.client_to_network.read_from(payload) {
             Ok(_) => {
                 self.update_interests(selector);
             }

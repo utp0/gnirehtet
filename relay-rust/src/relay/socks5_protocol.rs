@@ -2,20 +2,18 @@
 //!
 //! Implements [SOCKS Protocol Version 5](https://www.ietf.org/rfc/rfc1928.txt) proxy protocol
 
+use byteorder::{BigEndian, ReadBytesExt};
+use mio::net::TcpStream;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::{
     convert::From,
     fmt::{self, Debug},
     io::{self, ErrorKind, Read},
     u8,
 };
-use std::net::{SocketAddr, SocketAddrV4, Ipv4Addr};
-use mio::net::TcpStream;
-use byteorder::{ReadBytesExt, BigEndian};
 
 pub use self::consts::{
-    SOCKS5_AUTH_METHOD_GSSAPI,
-    SOCKS5_AUTH_METHOD_NONE,
-    SOCKS5_AUTH_METHOD_NOT_ACCEPTABLE,
+    SOCKS5_AUTH_METHOD_GSSAPI, SOCKS5_AUTH_METHOD_NONE, SOCKS5_AUTH_METHOD_NOT_ACCEPTABLE,
     SOCKS5_AUTH_METHOD_PASSWORD,
 };
 
@@ -210,28 +208,31 @@ pub enum Address {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Socks5State {
     NoProxy,
-    Socks5HostNotConnected, // first we send auth request
-    Socks5AuthSend,  // socks5 reply auth method
+    Socks5HostNotConnected,         // first we send auth request
+    Socks5AuthSend,                 // socks5 reply auth method
     Socks5AuthUsernamePasswordSend, // send username/password to socks5
     Socks5AuthUsernamePasswordDone, // socks5 username/password authorize done
-    Socks5AuthDone,  // socks5 authorize done, send cmd connect with target addr/port
-    TargetAddrSend,  // socks reply cmd connect status
-    RemoteConnected  // socks5 reply X'00', succeeded
+    Socks5AuthDone,                 // socks5 authorize done, send cmd connect with target addr/port
+    TargetAddrSend,                 // socks reply cmd connect status
+    RemoteConnected,                // socks5 reply X'00', succeeded
 }
 
 /// Authentication methods
 
 #[derive(Debug)]
 pub enum Authentication<'a> {
-    Password { username: &'a str, password: &'a str },
-    None
+    Password {
+        username: &'a str,
+        password: &'a str,
+    },
+    None,
 }
 
 impl<'a> Authentication<'a> {
     pub fn id(&self) -> u8 {
         match *self {
             Authentication::Password { .. } => 2,
-            Authentication::None => 0
+            Authentication::None => 0,
         }
     }
 
@@ -244,68 +245,103 @@ impl<'a> Authentication<'a> {
     }
 }
 
-
 fn read_addr<R: Read>(socket: &mut R) -> io::Result<SocketAddrV4> {
     match socket.read_u8()? {
-        1 => { // socks5 ipv4
+        1 => {
+            // socks5 ipv4
             let ip = Ipv4Addr::from(socket.read_u32::<BigEndian>()?);
             let port = socket.read_u16::<BigEndian>()?;
             Ok(SocketAddrV4::new(ip, port))
         }
-        _ => Err(io::Error::new(io::ErrorKind::Other, "unsupported address type")),
+        _ => Err(io::Error::new(
+            io::ErrorKind::Other,
+            "unsupported address type",
+        )),
     }
 }
 
 // must be called when socks5_state = TargetAddrSend and selector is readable
 pub fn socks5_read_response(socket: &mut TcpStream) -> io::Result<SocketAddrV4> {
     if socket.read_u8()? != 5 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid response version"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid response version",
+        ));
     }
 
     match socket.read_u8()? {
         0 => {}
-        1 => return Err(io::Error::new(io::ErrorKind::Other, "general SOCKS server failure")),
-        2 => return Err(io::Error::new(io::ErrorKind::Other, "connection not allowed by ruleset")),
+        1 => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "general SOCKS server failure",
+            ))
+        }
+        2 => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "connection not allowed by ruleset",
+            ))
+        }
         3 => return Err(io::Error::new(io::ErrorKind::Other, "network unreachable")),
         4 => return Err(io::Error::new(io::ErrorKind::Other, "host unreachable")),
         5 => return Err(io::Error::new(io::ErrorKind::Other, "connection refused")),
         6 => return Err(io::Error::new(io::ErrorKind::Other, "TTL expired")),
-        7 => return Err(io::Error::new(io::ErrorKind::Other, "command not supported")),
-        8 => return Err(io::Error::new(io::ErrorKind::Other, "address kind not supported")),
+        7 => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "command not supported",
+            ))
+        }
+        8 => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "address kind not supported",
+            ))
+        }
         _ => return Err(io::Error::new(io::ErrorKind::Other, "unknown error")),
     }
 
     if socket.read_u8()? != 0 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid reserved byte"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid reserved byte",
+        ));
     }
 
     read_addr(socket)
 }
 
-pub fn socks5_read_auth_method_response(socket : &mut TcpStream) -> io::Result<u8> {
+pub fn socks5_read_auth_method_response(socket: &mut TcpStream) -> io::Result<u8> {
     let mut buf = [0; 2];
     socket.read_exact(&mut buf)?;
 
     let response_version = buf[0];
     let selected_method = buf[1];
 
-    if response_version != 5  {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid auth response version"));
-    } else  {
+    if response_version != 5 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid auth response version",
+        ));
+    } else {
         Ok(selected_method)
     }
 }
 
-pub fn socks5_read_username_password_auth_response(socket : &mut TcpStream) -> io::Result<u8> {
+pub fn socks5_read_username_password_auth_response(socket: &mut TcpStream) -> io::Result<u8> {
     let mut buf = [0; 2];
     socket.read_exact(&mut buf)?;
 
     let response_version = buf[0];
     let authenticate_status = buf[1];
 
-    if response_version != 1  {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid auth u/p response version"));
-    } else  {
+    if response_version != 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid auth u/p response version",
+        ));
+    } else {
         Ok(authenticate_status)
     }
 }

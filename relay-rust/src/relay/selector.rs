@@ -39,7 +39,7 @@ pub struct Selector {
     poll: Poll,
     handlers: Slab<Rc<dyn EventHandler>>,
     // tokens to be removed after all the current poll events are executed
-    tokens_to_remove: Vec<Token>
+    tokens_to_remove: Vec<Token>,
 }
 
 impl Selector {
@@ -47,7 +47,7 @@ impl Selector {
         Ok(Self {
             poll: Poll::new()?,
             handlers: Slab::with_capacity(1024),
-            tokens_to_remove: Vec::new()
+            tokens_to_remove: Vec::new(),
         })
     }
 

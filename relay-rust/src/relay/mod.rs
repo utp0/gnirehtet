@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-pub use self::relay::Relay;
-pub use self::socks5_protocol::{Socks5State, Authentication};
-pub use self::proxy_config::GNIREHTET_PROXY_CONFIG;
 pub use self::proxy_config::CONF_PATH;
+pub use self::proxy_config::GNIREHTET_PROXY_CONFIG;
+pub use self::relay::Relay;
+pub use self::socks5_protocol::{Authentication, Socks5State};
 
 pub mod byte_buffer;
+pub mod tunnel_compression;
 
-mod socks5_protocol;
 mod proxy_config;
+mod socks5_protocol;
 
 mod binary;
 mod client;
@@ -33,11 +34,11 @@ mod datagram;
 mod datagram_buffer;
 #[macro_use]
 mod interrupt;
+mod ip_packet;
+mod ip_packet_buffer;
 mod ipv4_header;
 mod ipv4_packet;
 mod ipv4_packet_buffer;
-mod ip_packet;
-mod ip_packet_buffer;
 mod ipv6_header;
 mod ipv6_packet;
 mod net;
@@ -55,4 +56,3 @@ mod transport_header;
 mod tunnel_server;
 mod udp_connection;
 mod udp_header;
-
