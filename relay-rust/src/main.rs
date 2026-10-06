@@ -156,6 +156,7 @@ impl Command for RunCommand {
             | cli_args::PARAM_ROUTES
             | cli_args::PARAM_PORT
             | cli_args::PARAM_WHITELIST_BUNDLE_IDS
+            | cli_args::PARAM_STOP_ON_DISCONNECT
     }
 
     fn description(&self) -> &'static str {
@@ -173,6 +174,7 @@ impl Command for RunCommand {
             args.routes(),
             args.port(),
             args.whitelist_bundle_ids(),
+            args.stop_on_disconnect(),
         )
     }
 }
@@ -184,6 +186,7 @@ impl Command for AutorunCommand {
 
     fn accepted_parameters(&self) -> u8 {
         cli_args::PARAM_DNS_SERVERS | cli_args::PARAM_ROUTES | cli_args::PARAM_PORT | cli_args::PARAM_WHITELIST_BUNDLE_IDS
+            | cli_args::PARAM_STOP_ON_DISCONNECT
     }
 
     fn description(&self) -> &'static str {
@@ -193,7 +196,7 @@ impl Command for AutorunCommand {
     }
 
     fn execute(&self, args: &CommandLineArguments) -> Result<(), CommandExecutionError> {
-        cmd_autorun(args.dns_servers(), args.routes(), args.port(), args.whitelist_bundle_ids())
+        cmd_autorun(args.dns_servers(), args.routes(), args.port(), args.whitelist_bundle_ids(), args.stop_on_disconnect())
     }
 }
 
@@ -208,6 +211,7 @@ impl Command for StartCommand {
             | cli_args::PARAM_ROUTES
             | cli_args::PARAM_PORT
             | cli_args::PARAM_WHITELIST_BUNDLE_IDS
+            | cli_args::PARAM_STOP_ON_DISCONNECT
     }
 
     fn description(&self) -> &'static str {
@@ -221,6 +225,10 @@ impl Command for StartCommand {
          If -p is given, then make the relay server listen on the specified\n\
          port. Otherwise, use port 31416.\n\
          If -b is given, then reverse tethering will be enabled only for specified application's bundle ids\n\
+         If -s is given, the Android client will stop if the connection is\n\
+         lost (e.g. cable unplugged). Otherwise, the client will continue\n\
+         running, blocking all outgoing connections until connected again\n\
+         or stopped manually.\n\
          If the client is already started, then do nothing, and ignore\n\
          the other parameters.\n\
          10.0.2.2 is mapped to the host 'localhost'."
@@ -233,6 +241,7 @@ impl Command for StartCommand {
             args.routes(),
             args.port(),
             args.whitelist_bundle_ids(),
+            args.stop_on_disconnect(),
         )
     }
 }
@@ -244,6 +253,7 @@ impl Command for AutostartCommand {
 
     fn accepted_parameters(&self) -> u8 {
         cli_args::PARAM_DNS_SERVERS | cli_args::PARAM_ROUTES | cli_args::PARAM_PORT | cli_args::PARAM_WHITELIST_BUNDLE_IDS
+            | cli_args::PARAM_STOP_ON_DISCONNECT
     }
 
     fn description(&self) -> &'static str {
@@ -254,7 +264,7 @@ impl Command for AutostartCommand {
     }
 
     fn execute(&self, args: &CommandLineArguments) -> Result<(), CommandExecutionError> {
-        cmd_autostart(args.dns_servers(), args.routes(), args.port(), args.whitelist_bundle_ids())
+        cmd_autostart(args.dns_servers(), args.routes(), args.port(), args.whitelist_bundle_ids(), args.stop_on_disconnect())
     }
 }
 
@@ -289,6 +299,7 @@ impl Command for RestartCommand {
             | cli_args::PARAM_ROUTES
             | cli_args::PARAM_PORT
             | cli_args::PARAM_WHITELIST_BUNDLE_IDS
+            | cli_args::PARAM_STOP_ON_DISCONNECT
     }
 
     fn description(&self) -> &'static str {
@@ -303,6 +314,7 @@ impl Command for RestartCommand {
             args.routes(),
             args.port(),
             args.whitelist_bundle_ids(),
+            args.stop_on_disconnect(),
         )?;
         Ok(())
     }
@@ -370,9 +382,10 @@ fn cmd_run(
     routes: Option<&str>,
     port: u16,
     whitelist_bundle_ids: Option<&str>,
+    stop_on_disconnect: bool,
 ) -> Result<(), CommandExecutionError> {
     // start in parallel so that the relay server is ready when the client connects
-    async_start(serial, dns_servers, routes, port, whitelist_bundle_ids);
+    async_start(serial, dns_servers, routes, port, whitelist_bundle_ids, stop_on_disconnect);
 
     let ctrlc_serial = serial.map(String::from);
     ctrlc::set_handler(move || {
@@ -395,6 +408,7 @@ fn cmd_autorun(
     routes: Option<&str>,
     port: u16,
     whitelist_bundle_ids: Option<&str>,
+    stop_on_disconnect: bool,
 ) -> Result<(), CommandExecutionError> {
     {
         let autostart_dns_servers = dns_servers.map(String::from);
@@ -404,7 +418,7 @@ fn cmd_autorun(
             let dns_servers = autostart_dns_servers.as_ref().map(String::as_ref);
             let routes = autostart_routes.as_ref().map(String::as_ref);
             let whitelist_bundle_ids = autostart_whitelist_bundle_ids.as_ref().map(String::as_ref);
-            if let Err(err) = cmd_autostart(dns_servers, routes, port, whitelist_bundle_ids) {
+            if let Err(err) = cmd_autostart(dns_servers, routes, port, whitelist_bundle_ids, stop_on_disconnect) {
                 error!(target: TAG, "Cannot auto start clients: {}", err);
             }
         });
@@ -419,6 +433,7 @@ fn cmd_start(
     routes: Option<&str>,
     port: u16,
     whitelist_bundle_ids: Option<&str>,
+    stop_on_disconnect: bool,
 ) -> Result<(), CommandExecutionError> {
     if must_install_client(serial)? {
         cmd_install(serial)?;
@@ -448,6 +463,9 @@ fn cmd_start(
     if let Some(whitelist_bundle_ids) = whitelist_bundle_ids {
         adb_args.append(&mut vec!["--esa", "whitelistBundleIds", whitelist_bundle_ids]);
     }
+    if stop_on_disconnect {
+        adb_args.append(&mut vec!["--ez", "stopOnDisconnect", "true"]);
+    }
     exec_adb(serial, adb_args)
 }
 
@@ -456,6 +474,7 @@ fn cmd_autostart(
     routes: Option<&str>,
     port: u16,
     whitelist_bundle_ids: Option<&str>,
+    stop_on_disconnect: bool,
 ) -> Result<(), CommandExecutionError> {
     let start_dns_servers = dns_servers.map(String::from);
     let start_routes = routes.map(String::from);
@@ -464,7 +483,7 @@ fn cmd_autostart(
         let dns_servers = start_dns_servers.as_ref().map(String::as_ref);
         let routes = start_routes.as_ref().map(String::as_ref);
         let whitelist_bundle_ids = start_whitelist_bundle_ids.as_ref().map(String::as_ref);
-        async_start(Some(serial), dns_servers, routes, port, whitelist_bundle_ids)
+        async_start(Some(serial), dns_servers, routes, port, whitelist_bundle_ids, stop_on_disconnect)
     }));
     adb_monitor.monitor();
     Ok(())
@@ -508,7 +527,8 @@ fn async_start(
     dns_servers: Option<&str>,
     routes: Option<&str>,
     port: u16,
-    whitelist_bundle_ids: Option<&str>
+    whitelist_bundle_ids: Option<&str>,
+    stop_on_disconnect: bool,
 ) {
     let start_serial = serial.map(String::from);
     let start_dns_servers = dns_servers.map(String::from);
@@ -520,7 +540,7 @@ fn async_start(
         let dns_servers = start_dns_servers.as_ref().map(String::as_ref);
         let routes = start_routes.as_ref().map(String::as_ref);
         let whitelist_bundle_ids = start_whitelist_bundle_ids.as_ref().map(String::as_ref);
-        if let Err(err) = cmd_start(serial, dns_servers, routes, port, whitelist_bundle_ids) {
+        if let Err(err) = cmd_start(serial, dns_servers, routes, port, whitelist_bundle_ids, stop_on_disconnect) {
             error!(target: TAG, "Cannot start client: {}", err);
         }
     });
@@ -634,6 +654,9 @@ fn append_command_usage(msg: &mut String, command: &dyn Command) {
     }
     if (accepted_parameters & cli_args::PARAM_WHITELIST_BUNDLE_IDS) != 0 {
         msg.push_str(" [-b BUNDLE_ID[,BUNDLE_ID2,...]]")
+    }
+    if (accepted_parameters & cli_args::PARAM_STOP_ON_DISCONNECT) != 0 {
+        msg.push_str(" [-s]")
     }
     msg.push('\n');
     for desc_line in command.description().split('\n') {

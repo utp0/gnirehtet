@@ -27,6 +27,7 @@ public class GnirehtetActivity extends Activity {
     public static final String EXTRA_APPS = "apps";
     public static final String EXTRA_EXCLUDED_APPS = "excludedApps";
     public static final String EXTRA_BUNDLE_IDS = "whitelistBundleIds";
+    public static final String EXTRA_STOP_ON_DISCONNECT = "stopOnDisconnect";
     /** One of VpnConfiguration.UNDERLYING_*; absent means callback. */
     public static final String EXTRA_UNDERLYING = "underlying";
 
@@ -82,9 +83,10 @@ public class GnirehtetActivity extends Activity {
             whitelistBundleIds = new String[0];
         }
         String underlyingMode = VpnConfiguration.underlyingModeOf(intent.getStringExtra(EXTRA_UNDERLYING));
+        boolean stopOnDisconnect = intent.getBooleanExtra(EXTRA_STOP_ON_DISCONNECT, false);
 
         return new VpnConfiguration(Net.toInetAddresses(dnsServers), Net.toCIDRs(routes), Net.toCIDRs(excludedRoutes), apps, excludedApps,
-                whitelistBundleIds, underlyingMode);
+                whitelistBundleIds, underlyingMode, stopOnDisconnect);
     }
 
     private boolean startGnirehtet(VpnConfiguration config) {

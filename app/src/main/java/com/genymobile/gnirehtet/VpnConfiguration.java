@@ -42,6 +42,7 @@ public class VpnConfiguration implements Parcelable {
     private final String[] excludedApps;
     private final String[] whitelistBundleIds;
     private final String underlyingMode;
+    private final boolean stopOnDisconnect;
 
     public VpnConfiguration() {
         this(new InetAddress[0], new CIDR[0]);
@@ -52,21 +53,24 @@ public class VpnConfiguration implements Parcelable {
     }
 
     public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, String underlyingMode) {
-        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], new String[0], underlyingMode);
+        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], new String[0], underlyingMode, false);
     }
 
     public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, CIDR[] excludedRoutes, String[] apps, String[] excludedApps) {
-        this(dnsServers, routes, excludedRoutes, apps, excludedApps, new String[0], UNDERLYING_CALLBACK);
+        this(dnsServers, routes, excludedRoutes, apps, excludedApps, new String[0], UNDERLYING_CALLBACK, false);
     }
 
-    @SuppressWarnings("checkstyle:ParameterNumber")
     public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, String[] whitelistBundleIds) {
-        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], whitelistBundleIds, UNDERLYING_CALLBACK);
+        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], whitelistBundleIds, UNDERLYING_CALLBACK, false);
+    }
+
+    public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, boolean stopOnDisconnect) {
+        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], new String[0], UNDERLYING_CALLBACK, stopOnDisconnect);
     }
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, CIDR[] excludedRoutes, String[] apps, String[] excludedApps,
-            String[] whitelistBundleIds, String underlyingMode) {
+            String[] whitelistBundleIds, String underlyingMode, boolean stopOnDisconnect) {
         this.dnsServers = dnsServers;
         this.routes = routes;
         this.excludedRoutes = excludedRoutes;
@@ -74,6 +78,7 @@ public class VpnConfiguration implements Parcelable {
         this.excludedApps = excludedApps;
         this.whitelistBundleIds = whitelistBundleIds;
         this.underlyingMode = underlyingMode;
+        this.stopOnDisconnect = stopOnDisconnect;
     }
 
     private VpnConfiguration(Parcel source) {
@@ -92,6 +97,7 @@ public class VpnConfiguration implements Parcelable {
         excludedApps = source.createStringArray();
         whitelistBundleIds = source.createStringArray();
         underlyingMode = source.readString();
+        stopOnDisconnect = source.readByte() == 1;
     }
 
     public InetAddress[] getDnsServers() {
@@ -122,6 +128,10 @@ public class VpnConfiguration implements Parcelable {
         return underlyingMode;
     }
 
+    public boolean getIsStopOnDisconnect() {
+        return stopOnDisconnect;
+    }
+
     /**
      * The mode an intent asked for, or the default when it asked for none or
      * for something unknown. A typo in a shell command must not silently turn
@@ -146,6 +156,7 @@ public class VpnConfiguration implements Parcelable {
         dest.writeStringArray(excludedApps);
         dest.writeStringArray(whitelistBundleIds);
         dest.writeString(underlyingMode);
+        dest.writeByte(stopOnDisconnect ? (byte) 1 : (byte) 0);
     }
 
     @Override
