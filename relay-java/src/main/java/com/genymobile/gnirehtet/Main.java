@@ -21,7 +21,15 @@ import com.genymobile.gnirehtet.relay.Log;
 import com.genymobile.gnirehtet.relay.Relay;
 import com.genymobile.gnirehtet.relay.TunnelCompression;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.BindException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -88,7 +96,8 @@ public final class Main {
             }
         },
         RUN("run", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES
-                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
+                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION
+                | CommandLineArguments.PARAM_STOP_ON_DISCONNECT) {
             @Override
             String getDescription() {
                 return "Enable reverse tethering for exactly one device:\n"
@@ -97,33 +106,38 @@ public final class Main {
                         + "  - start the relay server;\n"
                         + "  - on Ctrl+C, stop both the relay server and the client.\n"
                         + "If -z is given, compress the tunnel traffic with the specified\n"
-                        + "algorithm (available: none, deflate).";
+                        + "algorithm (available: none, deflate).\n"
+                        + "If -s is given, stop the Android client if the relay connection\n"
+                        + "is lost (e.g. cable unplugged).";
             }
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
                 cmdRun(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(),
-                        args.getCompression());
+                        args.getCompression(), args.isStopOnDisconnect());
             }
         },
         AUTORUN("autorun", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT
-                | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
+                | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION | CommandLineArguments.PARAM_STOP_ON_DISCONNECT) {
             @Override
             String getDescription() {
                 return "Enable reverse tethering for all devices:\n"
                         + "  - monitor devices and start clients (autostart);\n"
                         + "  - start the relay server.\n"
                         + "If -z is given, compress the tunnel traffic with the specified\n"
-                        + "algorithm (available: none, deflate).";
+                        + "algorithm (available: none, deflate).\n"
+                        + "If -s is given, stop the Android clients if the relay connection\n"
+                        + "is lost (e.g. cable unplugged).";
             }
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdAutorun(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(), args.getCompression());
+                cmdAutorun(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(), args.getCompression(),
+                        args.isStopOnDisconnect());
             }
         },
         START("start", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES
-                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) {
+                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_STOP_ON_DISCONNECT) {
             @Override
             String getDescription() {
                 return "Start a client on the Android device and exit.\n"
@@ -132,10 +146,13 @@ public final class Main {
                         + "If -d is given, then make the Android device use the specified\n"
                         + "DNS server(s). Otherwise, use 8.8.8.8 (Google public DNS).\n"
                         + "If -r is given, then only reverse tether the specified routes.\n"
-                        + "If -p is given, then make the relay server listen on the specified\n"
-                        + "If -b is given, then reverse tethering will be enabled only for specified application's bundle ids\n"
-                        + "port. Otherwise, use port 31416.\n"
                         + "Otherwise, use 0.0.0.0/0 (redirect the whole traffic).\n"
+                        + "If -p is given, then make the relay server listen on the specified\n"
+                        + "port. Otherwise, use port 31416.\n"
+                        + "If -b is given, then reverse tethering will be enabled only for the\n"
+                        + "specified application's bundle ids.\n"
+                        + "If -s is given, stop the Android client if the relay connection\n"
+                        + "is lost (e.g. cable unplugged).\n"
                         + "If the client is already started, then do nothing, and ignore\n"
                         + "the other parameters.\n"
                         + "10.0.2.2 is mapped to the host 'localhost'.";
@@ -143,10 +160,12 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdStart(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
+                cmdStart(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(),
+                        args.isStopOnDisconnect());
             }
         },
-        AUTOSTART("autostart", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) {
+        AUTOSTART("autostart", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT
+                | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_STOP_ON_DISCONNECT) {
             @Override
             String getDescription() {
                 return "Listen for device connexions and start a client on every detected\n"
@@ -157,7 +176,7 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdAutostart(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
+                cmdAutostart(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(), args.isStopOnDisconnect());
             }
         },
         STOP("stop", CommandLineArguments.PARAM_SERIAL) {
@@ -174,7 +193,7 @@ public final class Main {
             }
         },
         RESTART("restart", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES
-                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) {
+                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_STOP_ON_DISCONNECT) {
             @Override
             String getDescription() {
                 return "Stop then start.";
@@ -182,7 +201,8 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdRestart(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
+                cmdRestart(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(),
+                        args.isStopOnDisconnect());
             }
         },
         TUNNEL("tunnel", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_PORT) {
@@ -241,10 +261,23 @@ public final class Main {
         cmdInstall(serial);
     }
 
-    private static void cmdRun(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, String compression)
-            throws IOException {
+    private static void cmdRun(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, String compression,
+            boolean stopOnDisconnect) throws IOException {
         // start in parallel so that the relay server is ready when the client connects
-        asyncStart(serial, dnsServers, routes, port, whitelistBundleIds);
+        asyncStart(serial, dnsServers, routes, port, whitelistBundleIds, stopOnDisconnect);
+
+        // monitor device reconnections and re-establish the tunnel automatically
+        Thread monitorThread = new Thread(() -> {
+            AdbMonitor adbMonitor = new AdbMonitor((reconnectedSerial) -> {
+                if (serial == null || serial.equals(reconnectedSerial)) {
+                    Log.i(TAG, "Device " + reconnectedSerial + " reconnected, re-establishing tunnel...");
+                    asyncStart(reconnectedSerial, dnsServers, routes, port, whitelistBundleIds, stopOnDisconnect);
+                }
+            });
+            adbMonitor.monitor();
+        }, "gnirehtet-adb-monitor");
+        monitorThread.setDaemon(true);
+        monitorThread.start();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             // executed on Ctrl+C
@@ -255,14 +288,27 @@ public final class Main {
             }
         }));
 
-        cmdRelay(port, compression);
+        if (isRelayRunning(port)) {
+            Log.i(TAG, "Relay server already running on port " + port + ", reusing existing instance");
+            // keep the process alive until Ctrl+C (handled by the shutdown hook)
+            while (true) {
+                try {
+                    Thread.sleep(60000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        } else {
+            cmdRelay(port, compression);
+        }
     }
 
     private static void cmdAutorun(final String dnsServers, final String routes, int port, final String whitelistBundleIds,
-            final String compression) throws IOException {
+            final String compression, final boolean stopOnDisconnect) throws IOException {
         new Thread(() -> {
             try {
-                cmdAutostart(dnsServers, routes, port, whitelistBundleIds);
+                cmdAutostart(dnsServers, routes, port, whitelistBundleIds, stopOnDisconnect);
             } catch (Exception e) {
                 Log.e(TAG, "Cannot auto start clients", e);
             }
@@ -272,12 +318,21 @@ public final class Main {
     }
 
     @SuppressWarnings("checkstyle:MagicNumber")
-    private static void cmdStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) throws InterruptedException, IOException,
-            CommandExecutionException {
+    private static void cmdStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, boolean stopOnDisconnect)
+            throws InterruptedException, IOException, CommandExecutionException {
         if (mustInstallClient(serial)) {
-            cmdInstall(serial);
-            // wait a bit after the app is installed so that intent actions are correctly registered
-            Thread.sleep(500); // ms
+            String apkPath = getApkPath();
+            if (new File(apkPath).isFile()) {
+                cmdInstall(serial);
+                // wait a bit after the app is installed so that intent actions are correctly registered
+                Thread.sleep(500); // ms
+            } else if (isClientInstalled(serial)) {
+                Log.w(TAG, "APK file '" + apkPath + "' not found, but client is already installed (possibly a different version). "
+                        + "Skipping install.");
+            } else {
+                Log.e(TAG, "APK file '" + apkPath + "' not found and client is not installed. Set GNIREHTET_APK to the correct path.");
+                throw new IOException("APK file not found: " + apkPath);
+            }
         }
 
         Log.i(TAG, "Starting client...");
@@ -295,12 +350,16 @@ public final class Main {
         if (whitelistBundleIds != null) {
             Collections.addAll(cmd, "--esa", "whitelistBundleIds", whitelistBundleIds);
         }
+        if (stopOnDisconnect) {
+            Collections.addAll(cmd, "--ez", "stopOnDisconnect", "true");
+        }
         execAdb(serial, cmd);
     }
 
-    private static void cmdAutostart(final String dnsServers, final String routes, int port, final String whitelistBundleIds) {
+    private static void cmdAutostart(final String dnsServers, final String routes, int port, final String whitelistBundleIds,
+            final boolean stopOnDisconnect) {
         AdbMonitor adbMonitor = new AdbMonitor((serial) -> {
-            asyncStart(serial, dnsServers, routes, port, whitelistBundleIds);
+            asyncStart(serial, dnsServers, routes, port, whitelistBundleIds, stopOnDisconnect);
         });
         adbMonitor.monitor();
     }
@@ -311,10 +370,10 @@ public final class Main {
                 "com.genymobile.gnirehtet/.GnirehtetActivity");
     }
 
-    private static void cmdRestart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) throws InterruptedException, IOException,
-            CommandExecutionException {
+    private static void cmdRestart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, boolean stopOnDisconnect)
+            throws InterruptedException, IOException, CommandExecutionException {
         cmdStop(serial);
-        cmdStart(serial, dnsServers, routes, port, whitelistBundleIds);
+        cmdStart(serial, dnsServers, routes, port, whitelistBundleIds, stopOnDisconnect);
     }
 
     private static void cmdTunnel(String serial, int port) throws InterruptedException, IOException, CommandExecutionException {
@@ -325,17 +384,45 @@ public final class Main {
         int compressionAlgorithm = compressionName == null ? TunnelCompression.ALGORITHM_NONE
                 : TunnelCompression.algorithmFromName(compressionName);
         Log.i(TAG, "Starting relay server on port " + port + "...");
-        new Relay(port, compressionAlgorithm).run();
+        try {
+            new Relay(port, compressionAlgorithm).run();
+        } catch (BindException e) {
+            Log.e(TAG, "Port " + port + " is already in use. Another relay may be running. "
+                    + "Kill it with 'pkill -f gnirehtet' or use a different port with '-p'.");
+            throw e;
+        }
     }
 
-    private static void asyncStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) {
+    private static void asyncStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, boolean stopOnDisconnect) {
         new Thread(() -> {
             try {
-                cmdStart(serial, dnsServers, routes, port, whitelistBundleIds);
+                cmdStart(serial, dnsServers, routes, port, whitelistBundleIds, stopOnDisconnect);
             } catch (Exception e) {
                 Log.e(TAG, "Cannot start client", e);
             }
         }).start();
+    }
+
+    private static boolean isRelayRunning(int port) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 500);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static boolean isClientInstalled(String serial) {
+        try {
+            String output = execForOutput(createAdbCommand(serial, "shell", "pm", "list", "packages", "com.genymobile.gnirehtet"));
+            return output.contains("package:com.genymobile.gnirehtet");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (IOException | CommandExecutionException e) {
+            Log.w(TAG, "Cannot check whether the client is installed", e);
+            return false;
+        }
     }
 
     private static void execAdb(String serial, String... adbArgs) throws InterruptedException, IOException, CommandExecutionException {
@@ -367,6 +454,24 @@ public final class Main {
         if (exitCode != 0) {
             throw new CommandExecutionException(command, exitCode);
         }
+    }
+
+    private static String execForOutput(List<String> command) throws InterruptedException, IOException, CommandExecutionException {
+        Log.d(TAG, "Execute: " + command);
+        ProcessBuilder processBuilder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = processBuilder.start();
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                builder.append(line).append(NL);
+            }
+        }
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new CommandExecutionException(command, exitCode);
+        }
+        return builder.toString();
     }
 
     private static boolean mustInstallClient(String serial) throws InterruptedException, IOException, CommandExecutionException {
@@ -434,6 +539,9 @@ public final class Main {
         }
         if ((command.acceptedParameters & CommandLineArguments.PARAM_COMPRESSION) != 0) {
             builder.append(" [-z ALGORITHM]");
+        }
+        if ((command.acceptedParameters & CommandLineArguments.PARAM_STOP_ON_DISCONNECT) != 0) {
+            builder.append(" [-s]");
         }
         builder.append(NL);
         String[] descLines = command.getDescription().split("\n");

@@ -22,7 +22,7 @@ import org.junit.Test;
 public class CommandLineArgumentsTest {
 
     private static final int ACCEPT_ALL = CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER
-            | CommandLineArguments.PARAM_ROUTES;
+            | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_STOP_ON_DISCONNECT;
 
     @Test
     public void testNoArgs() {
@@ -83,5 +83,17 @@ public class CommandLineArgumentsTest {
     @Test(expected = IllegalArgumentException.class)
     public void testNoRoutesParameter() {
         CommandLineArguments.parse(ACCEPT_ALL, "-r");
+    }
+
+    @Test
+    public void testStopOnDisconnectParameter() {
+        CommandLineArguments args = CommandLineArguments.parse(ACCEPT_ALL, "-s");
+        Assert.assertTrue(args.isStopOnDisconnect());
+    }
+
+    @Test
+    public void testNoStopOnDisconnectParameter() {
+        CommandLineArguments args = CommandLineArguments.parse(ACCEPT_ALL);
+        Assert.assertFalse(args.isStopOnDisconnect());
     }
 }

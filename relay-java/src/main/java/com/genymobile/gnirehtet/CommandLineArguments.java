@@ -29,6 +29,7 @@ public class CommandLineArguments {
     public static final int PARAM_PORT = 1 << 3;
     public static final int PARAM_WHITELIST_BUNDLE_IDS = 1 << 4;
     public static final int PARAM_COMPRESSION = 1 << 5;
+    public static final int PARAM_STOP_ON_DISCONNECT = 1 << 6;
 
     public static final int DEFAULT_PORT = 31416;
 
@@ -38,6 +39,7 @@ public class CommandLineArguments {
     private String routes;
     private String whitelistBundleIds;
     private String compression;
+    private boolean stopOnDisconnect;
 
     public static CommandLineArguments parse(int acceptedParameters, String... args) {
         CommandLineArguments arguments = new CommandLineArguments();
@@ -91,6 +93,11 @@ public class CommandLineArguments {
                 }
                 arguments.compression = args[i + 1];
                 ++i;
+            } else if ((acceptedParameters & PARAM_STOP_ON_DISCONNECT) != 0 && "-s".equals(arg)) {
+                if (arguments.stopOnDisconnect) {
+                    throw new IllegalArgumentException("Stop on disconnect already set");
+                }
+                arguments.stopOnDisconnect = true;
             } else if ((acceptedParameters & PARAM_SERIAL) != 0 && arguments.serial == null) {
                 arguments.serial = arg;
             } else {
@@ -125,5 +132,9 @@ public class CommandLineArguments {
 
     public String getCompression() {
         return compression;
+    }
+
+    public boolean isStopOnDisconnect() {
+        return stopOnDisconnect;
     }
 }
