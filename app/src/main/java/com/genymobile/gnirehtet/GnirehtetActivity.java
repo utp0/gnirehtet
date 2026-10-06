@@ -26,6 +26,8 @@ public class GnirehtetActivity extends Activity {
     public static final String EXTRA_EXCLUDED_ROUTES = "excludedRoutes";
     public static final String EXTRA_APPS = "apps";
     public static final String EXTRA_EXCLUDED_APPS = "excludedApps";
+    /** One of VpnConfiguration.UNDERLYING_*; absent means callback. */
+    public static final String EXTRA_UNDERLYING = "underlying";
 
     private static final int VPN_REQUEST_CODE = 0;
 
@@ -74,8 +76,10 @@ public class GnirehtetActivity extends Activity {
         if (excludedApps == null) {
             excludedApps = new String[0];
         }
+        String underlyingMode = VpnConfiguration.underlyingModeOf(intent.getStringExtra(EXTRA_UNDERLYING));
 
-        return new VpnConfiguration(Net.toInetAddresses(dnsServers), Net.toCIDRs(routes), Net.toCIDRs(excludedRoutes), apps, excludedApps);
+        return new VpnConfiguration(Net.toInetAddresses(dnsServers), Net.toCIDRs(routes), Net.toCIDRs(excludedRoutes), apps, excludedApps,
+                underlyingMode);
     }
 
     private boolean startGnirehtet(VpnConfiguration config) {

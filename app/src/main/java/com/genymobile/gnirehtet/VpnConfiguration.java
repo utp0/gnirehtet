@@ -24,26 +24,49 @@ import java.net.UnknownHostException;
 
 public class VpnConfiguration implements Parcelable {
 
+    /**
+     * How the VPN tells Android which network carries its traffic. See
+     * {@link GnirehtetService} for why this matters and what each mode does.
+     */
+    /** Wait for the VPN network to be registered, then declare it as its own underlying network (default). */
+    public static final String UNDERLYING_CALLBACK = "callback";
+    /** The v2.5.1 behaviour: one synchronous scan right after establish(). */
+    public static final String UNDERLYING_SCAN = "scan";
+    /** Declare nothing. */
+    public static final String UNDERLYING_NONE = "none";
+
     private final InetAddress[] dnsServers;
     private final CIDR[] routes;
     private final CIDR[] excludedRoutes;
     private final String[] apps;
     private final String[] excludedApps;
+    private final String underlyingMode;
 
     public VpnConfiguration() {
-        this.dnsServers = new InetAddress[0];
-        this.routes = new CIDR[0];
-        this.excludedRoutes = new CIDR[0];
-        this.apps = new String[0];
-        this.excludedApps = new String[0];
+        this(new InetAddress[0], new CIDR[0]);
+    }
+
+    public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes) {
+        this(dnsServers, routes, UNDERLYING_CALLBACK);
+    }
+
+    public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, String underlyingMode) {
+        this(dnsServers, routes, new CIDR[0], new String[0], new String[0], underlyingMode);
     }
 
     public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, CIDR[] excludedRoutes, String[] apps, String[] excludedApps) {
+        this(dnsServers, routes, excludedRoutes, apps, excludedApps, UNDERLYING_CALLBACK);
+    }
+
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public VpnConfiguration(InetAddress[] dnsServers, CIDR[] routes, CIDR[] excludedRoutes, String[] apps, String[] excludedApps,
+            String underlyingMode) {
         this.dnsServers = dnsServers;
         this.routes = routes;
         this.excludedRoutes = excludedRoutes;
         this.apps = apps;
         this.excludedApps = excludedApps;
+        this.underlyingMode = underlyingMode;
     }
 
     private VpnConfiguration(Parcel source) {
@@ -60,6 +83,7 @@ public class VpnConfiguration implements Parcelable {
         excludedRoutes = source.createTypedArray(CIDR.CREATOR);
         apps = source.createStringArray();
         excludedApps = source.createStringArray();
+        underlyingMode = source.readString();
     }
 
     public InetAddress[] getDnsServers() {
@@ -70,11 +94,33 @@ public class VpnConfiguration implements Parcelable {
         return routes;
     }
 
-    public CIDR[] getExcludedRoutes() { return excludedRoutes; }
+    public CIDR[] getExcludedRoutes() {
+        return excludedRoutes;
+    }
 
-    public String[] getApps() { return apps; }
+    public String[] getApps() {
+        return apps;
+    }
 
-    public String[] getExcludedApps() { return excludedApps; }
+    public String[] getExcludedApps() {
+        return excludedApps;
+    }
+
+    public String getUnderlyingMode() {
+        return underlyingMode;
+    }
+
+    /**
+     * The mode an intent asked for, or the default when it asked for none or
+     * for something unknown. A typo in a shell command must not silently turn
+     * the workaround off.
+     */
+    public static String underlyingModeOf(String requested) {
+        if (UNDERLYING_SCAN.equals(requested) || UNDERLYING_NONE.equals(requested)) {
+            return requested;
+        }
+        return UNDERLYING_CALLBACK;
+    }
 
     @Override
     public void writeToParcel(Parcel dest, int flags) {
@@ -86,6 +132,7 @@ public class VpnConfiguration implements Parcelable {
         dest.writeTypedArray(excludedRoutes, 0);
         dest.writeStringArray(apps);
         dest.writeStringArray(excludedApps);
+        dest.writeString(underlyingMode);
     }
 
     @Override
