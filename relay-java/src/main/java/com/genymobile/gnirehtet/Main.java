@@ -20,10 +20,7 @@ import com.genymobile.gnirehtet.relay.CommandExecutionException;
 import com.genymobile.gnirehtet.relay.Log;
 import com.genymobile.gnirehtet.relay.Relay;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,7 +49,7 @@ public final class Main {
     }
 
     enum Command {
-        INSTALL("install", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_COMPRESSION) {
+        INSTALL("install", CommandLineArguments.PARAM_SERIAL) {
             @Override
             String getDescription() {
                 return "Install the client on the Android device and exit.\n"
@@ -62,7 +59,7 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdInstall(args.getSerial(), args.getCompression());
+                cmdInstall(args.getSerial());
             }
         },
         UNINSTALL("uninstall", CommandLineArguments.PARAM_SERIAL) {
@@ -78,7 +75,7 @@ public final class Main {
                 cmdUninstall(args.getSerial());
             }
         },
-        REINSTALL("reinstall", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_COMPRESSION) {
+        REINSTALL("reinstall", CommandLineArguments.PARAM_SERIAL) {
             @Override
             String getDescription() {
                 return "Uninstall then install.";
@@ -86,11 +83,11 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdReinstall(args.getSerial(), args.getCompression());
+                cmdReinstall(args.getSerial());
             }
         },
         RUN("run", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES
-                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
+                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS ) {
             @Override
             String getDescription() {
                 return "Enable reverse tethering for exactly one device:\n"
@@ -102,12 +99,10 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdRun(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(),
-                        args.getCompression());
+                cmdRun(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
             }
         },
-        AUTORUN("autorun", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT
-                | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
+        AUTORUN("autorun", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) {
             @Override
             String getDescription() {
                 return "Enable reverse tethering for all devices:\n"
@@ -117,11 +112,11 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdAutorun(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(), args.getCompression());
+                cmdAutorun(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
             }
         },
         START("start", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES
-                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
+                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) {
             @Override
             String getDescription() {
                 return "Start a client on the Android device and exit.\n"
@@ -130,13 +125,10 @@ public final class Main {
                         + "If -d is given, then make the Android device use the specified\n"
                         + "DNS server(s). Otherwise, use 8.8.8.8 (Google public DNS).\n"
                         + "If -r is given, then only reverse tether the specified routes.\n"
-                        + "Otherwise, use 0.0.0.0/0 (redirect the whole traffic).\n"
                         + "If -p is given, then make the relay server listen on the specified\n"
+                        + "If -b is given, then reverse tethering will be enabled only for specified application's bundle ids\n"
                         + "port. Otherwise, use port 31416.\n"
-                        + "If -b is given, then reverse tethering will be enabled only for the\n"
-                        + "specified application's bundle ids.\n"
-                        + "If -z is given, then install the APK using the specified adb\n"
-                        + "compression algorithm (any, none, brotli, lz4 or zstd).\n"
+                        + "Otherwise, use 0.0.0.0/0 (redirect the whole traffic).\n"
                         + "If the client is already started, then do nothing, and ignore\n"
                         + "the other parameters.\n"
                         + "10.0.2.2 is mapped to the host 'localhost'.";
@@ -144,11 +136,10 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdStart(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(), args.getCompression());
+                cmdStart(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
             }
         },
-        AUTOSTART("autostart", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT
-                | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
+        AUTOSTART("autostart", CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) {
             @Override
             String getDescription() {
                 return "Listen for device connexions and start a client on every detected\n"
@@ -159,7 +150,7 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdAutostart(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(), args.getCompression());
+                cmdAutostart(args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
             }
         },
         STOP("stop", CommandLineArguments.PARAM_SERIAL) {
@@ -176,7 +167,7 @@ public final class Main {
             }
         },
         RESTART("restart", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_DNS_SERVER | CommandLineArguments.PARAM_ROUTES
-                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS | CommandLineArguments.PARAM_COMPRESSION) {
+                | CommandLineArguments.PARAM_PORT | CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) {
             @Override
             String getDescription() {
                 return "Stop then start.";
@@ -184,7 +175,7 @@ public final class Main {
 
             @Override
             void execute(CommandLineArguments args) throws Exception {
-                cmdRestart(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds(), args.getCompression());
+                cmdRestart(args.getSerial(), args.getDnsServers(), args.getRoutes(), args.getPort(), args.getWhitelistBundleIds());
             }
         },
         TUNNEL("tunnel", CommandLineArguments.PARAM_SERIAL | CommandLineArguments.PARAM_PORT) {
@@ -226,54 +217,9 @@ public final class Main {
         abstract void execute(CommandLineArguments args) throws Exception;
     }
 
-    private static void cmdInstall(String serial, String compression) throws InterruptedException, IOException, CommandExecutionException {
+    private static void cmdInstall(String serial) throws InterruptedException, IOException, CommandExecutionException {
         Log.i(TAG, "Installing gnirehtet client...");
-        if (compression == null) {
-            execAdb(serial, "install", "-r", getApkPath());
-            return;
-        }
-        installWithCompression(serial, compression.trim().toLowerCase());
-    }
-
-    private static void installWithCompression(String serial, String algorithm) throws InterruptedException, IOException, CommandExecutionException {
-        List<String> available = getAvailableAdbCompressionAlgorithms(serial);
-        if (available.isEmpty()) {
-            Log.w(TAG, "The local adb does not support compression (-z); falling back to a regular install");
-            execAdb(serial, "install", "-r", getApkPath());
-            return;
-        }
-        if (!available.contains(algorithm)) {
-            throw new IllegalArgumentException("Unsupported adb compression algorithm: \"" + algorithm + "\". Available: "
-                    + String.join(", ", available));
-        }
-        Log.i(TAG, "Using adb compression algorithm: " + algorithm + " (available: " + String.join(", ", available) + ")");
-        String remotePath = "/data/local/tmp/gnirehtet.apk";
-        List<String> pushCommand = new ArrayList<>();
-        pushCommand.add("push");
-        if ("none".equals(algorithm)) {
-            pushCommand.add("-Z");
-        } else {
-            pushCommand.add("-z");
-            pushCommand.add(algorithm);
-        }
-        pushCommand.add(getApkPath());
-        pushCommand.add(remotePath);
-        execAdb(serial, pushCommand);
-        execAdb(serial, "shell", "pm", "install", "-r", remotePath);
-        execAdb(serial, "shell", "rm", "-f", remotePath);
-    }
-
-    private static List<String> getAvailableAdbCompressionAlgorithms(String serial) throws InterruptedException, IOException, CommandExecutionException {
-        String output = execForOutput(createAdbCommand(serial, "help"));
-        Matcher matcher = Pattern.compile("-z: enable compression with a specified algorithm \\(([^)]+)\\)").matcher(output);
-        if (!matcher.find()) {
-            return Collections.emptyList();
-        }
-        List<String> algorithms = new ArrayList<>();
-        for (String algorithm : matcher.group(1).split("/")) {
-            algorithms.add(algorithm.trim());
-        }
-        return algorithms;
+        execAdb(serial, "install", "-r", getApkPath());
     }
 
     private static void cmdUninstall(String serial) throws InterruptedException, IOException, CommandExecutionException {
@@ -281,15 +227,14 @@ public final class Main {
         execAdb(serial, "uninstall", "com.genymobile.gnirehtet");
     }
 
-    private static void cmdReinstall(String serial, String compression) throws InterruptedException, IOException, CommandExecutionException {
+    private static void cmdReinstall(String serial) throws InterruptedException, IOException, CommandExecutionException {
         cmdUninstall(serial);
-        cmdInstall(serial, compression);
+        cmdInstall(serial);
     }
 
-    private static void cmdRun(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, String compression)
-            throws IOException {
+    private static void cmdRun(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) throws IOException {
         // start in parallel so that the relay server is ready when the client connects
-        asyncStart(serial, dnsServers, routes, port, whitelistBundleIds, compression);
+        asyncStart(serial, dnsServers, routes, port, whitelistBundleIds);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             // executed on Ctrl+C
@@ -303,11 +248,10 @@ public final class Main {
         cmdRelay(port);
     }
 
-    private static void cmdAutorun(final String dnsServers, final String routes, int port, final String whitelistBundleIds, final String compression)
-            throws IOException {
+    private static void cmdAutorun(final String dnsServers, final String routes, int port, final String whitelistBundleIds) throws IOException {
         new Thread(() -> {
             try {
-                cmdAutostart(dnsServers, routes, port, whitelistBundleIds, compression);
+                cmdAutostart(dnsServers, routes, port, whitelistBundleIds);
             } catch (Exception e) {
                 Log.e(TAG, "Cannot auto start clients", e);
             }
@@ -317,10 +261,10 @@ public final class Main {
     }
 
     @SuppressWarnings("checkstyle:MagicNumber")
-    private static void cmdStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, String compression)
-            throws InterruptedException, IOException, CommandExecutionException {
+    private static void cmdStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) throws InterruptedException, IOException,
+            CommandExecutionException {
         if (mustInstallClient(serial)) {
-            cmdInstall(serial, compression);
+            cmdInstall(serial);
             // wait a bit after the app is installed so that intent actions are correctly registered
             Thread.sleep(500); // ms
         }
@@ -343,9 +287,9 @@ public final class Main {
         execAdb(serial, cmd);
     }
 
-    private static void cmdAutostart(final String dnsServers, final String routes, int port, final String whitelistBundleIds, final String compression) {
+    private static void cmdAutostart(final String dnsServers, final String routes, int port, final String whitelistBundleIds) {
         AdbMonitor adbMonitor = new AdbMonitor((serial) -> {
-            asyncStart(serial, dnsServers, routes, port, whitelistBundleIds, compression);
+            asyncStart(serial, dnsServers, routes, port, whitelistBundleIds);
         });
         adbMonitor.monitor();
     }
@@ -356,10 +300,10 @@ public final class Main {
                 "com.genymobile.gnirehtet/.GnirehtetActivity");
     }
 
-    private static void cmdRestart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, String compression)
-            throws InterruptedException, IOException, CommandExecutionException {
+    private static void cmdRestart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) throws InterruptedException, IOException,
+            CommandExecutionException {
         cmdStop(serial);
-        cmdStart(serial, dnsServers, routes, port, whitelistBundleIds, compression);
+        cmdStart(serial, dnsServers, routes, port, whitelistBundleIds);
     }
 
     private static void cmdTunnel(String serial, int port) throws InterruptedException, IOException, CommandExecutionException {
@@ -371,10 +315,10 @@ public final class Main {
         new Relay(port).run();
     }
 
-    private static void asyncStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds, String compression) {
+    private static void asyncStart(String serial, String dnsServers, String routes, int port, String whitelistBundleIds) {
         new Thread(() -> {
             try {
-                cmdStart(serial, dnsServers, routes, port, whitelistBundleIds, compression);
+                cmdStart(serial, dnsServers, routes, port, whitelistBundleIds);
             } catch (Exception e) {
                 Log.e(TAG, "Cannot start client", e);
             }
@@ -410,24 +354,6 @@ public final class Main {
         if (exitCode != 0) {
             throw new CommandExecutionException(command, exitCode);
         }
-    }
-
-    private static String execForOutput(List<String> command) throws InterruptedException, IOException, CommandExecutionException {
-        Log.d(TAG, "Execute: " + command);
-        ProcessBuilder processBuilder = new ProcessBuilder(command).redirectErrorStream(true);
-        Process process = processBuilder.start();
-        StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                builder.append(line).append(NL);
-            }
-        }
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            throw new CommandExecutionException(command, exitCode);
-        }
-        return builder.toString();
     }
 
     private static boolean mustInstallClient(String serial) throws InterruptedException, IOException, CommandExecutionException {
@@ -492,9 +418,6 @@ public final class Main {
         }
         if ((command.acceptedParameters & CommandLineArguments.PARAM_WHITELIST_BUNDLE_IDS) != 0) {
             builder.append(" [-b BUNDLE_ID[,BUNDLE_ID2,...]]");
-        }
-        if ((command.acceptedParameters & CommandLineArguments.PARAM_COMPRESSION) != 0) {
-            builder.append(" [-z ALGORITHM]");
         }
         builder.append(NL);
         String[] descLines = command.getDescription().split("\n");
